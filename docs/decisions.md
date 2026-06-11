@@ -1,0 +1,367 @@
+# Architecture Decision Records (ADRs)
+
+All significant architectural and design decisions made during this project are logged here.
+Format: context → options considered → decision → reasoning → consequences.
+
+This document exists to show the human decision-making process behind the system design.
+Code was generated with AI assistance. Every decision in this file was made by the engineer.
+
+---
+
+## ADR-001: File Structure Philosophy
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Needed to decide how to organize the project's folders — by feature (everything for one feature together) or by layer (everything of the same type together).
+
+**Options considered:**
+- A) Feature-based: `patient/` contains agent, schema, routes, tests for the patient feature
+- B) Layer-based: `agents/`, `schemas/`, `api/` each contain their respective files across all features
+- C) Hybrid: AI system components grouped as layers, but each layer is a cohesive AI concern
+
+**Decision:** Hybrid layer-based (Option C) — layers map to AI system components, not traditional web app layers.
+
+**Reasoning:**
+For an AI engineering project, the natural grouping is by what kind of AI work each component does — not by web app convention. When debugging why an agent isn't reading memory correctly, the relevant files are in `agents/` and `memory/` — two folders, not scattered across five feature folders. This mirrors how production AI repos (LangChain, most serious LLM pipelines) are structured. Pure feature-based structure is better for large teams where different engineers own different features — not applicable here.
+
+**Consequences:**
+Layers are: `agents/`, `memory/`, `rag/`, `evaluation/`, `state/`, `llm/`, `db/`, `api/`, `core/`. Adding a new scenario type means adding data files, not new folders. Adding a new agent means adding one file to `agents/`.
+
+---
+
+## ADR-002: Frontend Architecture
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Needed a frontend that allows medical students to interact with the simulation. Decision was whether to build a single-service app or a separated backend/frontend.
+
+**Options considered:**
+- A) Streamlit only — single Python service, state managed by Streamlit
+- B) FastAPI backend + Streamlit frontend — two services, Streamlit calls FastAPI over HTTP
+- C) FastAPI backend + React frontend — production-grade separation, more complex
+
+**Decision:** FastAPI backend + Streamlit frontend (Option B)
+
+**Reasoning:**
+FastAPI is the industry standard for serving LLM-backed APIs — it's async-native, auto-generates OpenAPI docs, and is what interviewers expect to see. Streamlit is not a production frontend but it's fast to build and keeps focus on the AI engineering, not CSS. The key constraint: Streamlit only calls FastAPI over HTTP — no direct imports from `src/`. This means replacing Streamlit with React later requires zero changes to the backend. The seam is clean by design.
+
+**Consequences:**
+All business logic lives in FastAPI. Streamlit is a thin UI layer. The FastAPI backend is independently testable and demonstrable without any frontend.
+
+---
+
+## ADR-003: Patient State Representation
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The patient's medical state — symptoms, history, hidden information, emotional arc — needed to be represented in memory during a session. The key question was how to encode relationships between pieces of information, not just the information itself.
+
+**Options considered:**
+- A) Flat dictionary — `{"symptoms": [...], "history": [...], "hidden": [...]}`
+- B) NetworkX graph — nodes for each piece of information, edges for relationships between them
+- C) Relational tables in SQLite — structured but requires DB reads on every turn
+
+**Decision:** NetworkX graph, in-memory during session (Option B)
+
+**Reasoning:**
+A flat dictionary can store values but cannot encode relationships. Chest pain *connects to* shortness of breath. Smoking *increases risk of* cardiac events. The father's death *triggers* emotional avoidance. These relationships determine what gets revealed when — and that behavior should emerge from graph traversal, not hardcoded if/else logic. With a graph, adding a new scenario means defining new nodes and edges in a JSON file, not writing new conditional logic. NetworkX is a Python library (not a database), runs in-memory, and requires no infrastructure.
+
+**Consequences:**
+The graph lives in memory during a session and is lost on backend restart — acceptable for MVP. A snapshot is serialized to SQLite at session end. The `state/builder.py` module constructs the graph from LLM-generated patient JSON. The `state/serializer.py` handles graph ↔ JSON conversion for storage.
+
+---
+
+## ADR-004: Database Strategy
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Two types of data need storage: structured relational data (sessions, conversation turns, evaluations) and vector embeddings (clinical cases for RAG retrieval). These have fundamentally different access patterns.
+
+**Options considered for relational:**
+- A) In-memory only — no persistence, sessions lost on restart
+- B) SQLite + SQLAlchemy — file-based, no server, full SQL, ORM abstraction
+- C) PostgreSQL — full production database, requires Docker service
+- D) Redis — in-memory store, fast, used in production AI session management
+
+**Options considered for vectors:**
+- A) SQLite with serialized vectors — possible but not optimized for similarity search
+- B) ChromaDB — vector database, library mode (no server), built for embedding storage and retrieval
+- C) Pinecone — managed cloud vector DB, not free at scale
+
+**Decision:** SQLite + SQLAlchemy for relational data; ChromaDB for vector data
+
+**Reasoning:**
+SQLite gives full persistence with zero infrastructure overhead — one file on disk. SQLAlchemy ORM means migrating to PostgreSQL later is a one-line config change. The distinction between the two databases maps to access pattern: SQLite answers "give me this specific thing by ID or filter"; ChromaDB answers "give me things semantically similar to this query." Regular SQL cannot do semantic similarity search. ChromaDB runs as a library (no server to manage), which keeps infrastructure minimal for an MVP. Redis deferred to future projects (job portal, production RAG system) where session caching at scale is genuinely needed.
+
+**Consequences:**
+Sessions, turns, and evaluations are queryable by ID and filterable by field. Clinical case retrieval is semantic — embedding-based, not keyword-based. ChromaDB is only queried at session start for scenario generation, not during conversation turns.
+
+---
+
+## ADR-005: LLM Provider Strategy
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The project needs LLM calls for five distinct purposes: patient agent, nurse agent, family agent, scenario generation, and evaluation/judging. Free tier rate limits are a real constraint. Provider reliability varies.
+
+**Options considered:**
+- A) Single provider (Gemini) for everything — simplest, one API key, one client
+- B) Per-agent provider config with abstraction layer — each agent independently configurable
+- C) OpenAI — not free tier, excluded on cost grounds
+
+**Decision:** Per-agent configuration with provider abstraction layer (Option B)
+
+**Reasoning:**
+Different agents have different requirements. The judge LLM needs strong analytical reasoning — Groq/Llama 3.3 70B is better suited and has separate rate limits from the conversation agents. The scenario generator benefits from a slightly more capable model (Gemini 2.5 Flash vs Flash-Lite) since it runs once per session, not per turn. The abstraction layer means agent code never knows which provider it's using — it calls `llm_client.complete(agent_name, prompt)` and the client handles routing. Swapping any agent's model is a one-line change in `AGENT_CONFIG`. This pattern mirrors how production AI systems handle multi-model orchestration.
+
+**Current config:**
+- Patient, nurse, family → Gemini 2.5 Flash-Lite (15 RPM, 1000 RPD free tier)
+- Scenario generator → Gemini 2.5 Flash (higher capability, runs once per session)
+- Judge → Groq / Llama 3.3 70B (separate rate limits, strong structured reasoning)
+
+**Consequences:**
+`src/llm/client.py` is the only file that knows about providers. All agents import `llm_client`, never `gemini` or `groq` directly. Exponential backoff (1s, 2s, 4s, 8s) on 429 errors implemented in `src/llm/retry.py`.
+
+---
+
+## ADR-006: LLM Config Typing
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+AGENT_CONFIG maps agent names to provider/model pairs. The question was whether to use plain Python dicts or typed Pydantic models for each agent's config entry.
+
+**Options considered:**
+- A) Plain dict — `{"provider": "gemini", "model": "gemini-2.5-flash-lite"}`
+- B) Typed Pydantic model — `AgentLLMConfig(provider="gemini", model="gemini-2.5-flash-lite")`
+
+**Decision:** Typed Pydantic model (Option B)
+
+**Reasoning:**
+With a plain dict, a typo in a provider name (`"gemmini"`) is stored silently and only surfaces as a confusing runtime error mid-session. With a typed Pydantic model, validation happens at startup — the application fails immediately with a clear error message before any user interaction. This is consistent with the project-wide standard of "Pydantic for all internal data." The typed model also makes adding an optional fallback field clean: `fallback: Optional[AgentLLMConfig] = None`.
+
+**Consequences:**
+All agent code receives validated config objects. Provider name typos crash at startup, not mid-session. The fallback field is part of the config schema from day one.
+
+---
+
+## ADR-007: Environment Variable Loading
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+API keys and configuration values need to be loaded from environment variables / `.env` file. The question was whether to use Python's standard `os.getenv` manually or use the `pydantic-settings` library.
+
+**Options considered:**
+- A) Manual `os.getenv` with custom validation — full control, no extra dependency
+- B) `pydantic-settings` — automatic `.env` loading, type coercion, required-field validation
+
+**Decision:** pydantic-settings (Option B)
+
+**Reasoning:**
+`pydantic-settings` handles `.env` file loading, type validation, and required-field enforcement automatically. A missing `GEMINI_API_KEY` crashes at startup with a clear error rather than surfacing as a 401 twenty minutes into a session. It's the FastAPI standard pattern — seen in virtually every production FastAPI codebase. The manual approach provides no meaningful advantage and requires writing validation logic that `pydantic-settings` already provides.
+
+**Consequences:**
+`src/core/config.py` defines a `Settings(BaseSettings)` class. Adding a new required environment variable means adding one typed field to the class. The `.env.example` template documents all required variables for setup.
+
+---
+
+## ADR-008: Settings Singleton Pattern
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Multiple modules need access to settings (API keys, config values). The question was whether each module instantiates its own `Settings()` or whether a single shared instance is used.
+
+**Options considered:**
+- A) Direct instantiation — each module calls `Settings()` at import time
+- B) `lru_cache`-wrapped `get_settings()` function — single instance, overridable in tests
+
+**Decision:** `lru_cache` pattern (Option B)
+
+**Reasoning:**
+Direct instantiation re-reads the `.env` file on every import and makes testing difficult — you can't override settings for tests without monkeypatching. The `lru_cache` pattern is FastAPI convention: `get_settings()` is called as a dependency, and tests override it via `app.dependency_overrides[get_settings]`. This is critical because tests must never hit real LLM APIs (which would burn free tier quota). The mock-the-LLM-layer requirement only works cleanly if settings are injectable.
+
+**Consequences:**
+One `Settings` instance for the entire application lifetime. Tests can inject fake API keys without touching real providers. Every module that needs settings calls `get_settings()`, never instantiates `Settings()` directly.
+
+---
+
+## ADR-009: Agent Router Design
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+When a student sends a message, the system must decide which agent responds — patient, nurse, or family member. Two approaches were considered with meaningfully different cost implications given free tier rate limits.
+
+**Options considered:**
+- A) LLM-based routing — send each message to an LLM classifier to decide which agent responds
+- B) Explicit UI addressing with LLM fallback — student selects or addresses an agent directly; LLM only used for genuinely ambiguous messages
+
+**Decision:** Explicit UI addressing with LLM fallback (Option B)
+
+**Reasoning:**
+On a 15 RPM free tier, Option A costs an extra LLM call per turn — roughly halving conversation throughput. Most medical interview messages are naturally directed anyway ("Nurse, what are his vitals?", "Can you tell me more about the pain?"). Explicit addressing costs nothing computationally and is pedagogically reasonable — medical students do direct their questions in real clinical encounters. LLM fallback handles edge cases without penalizing every turn.
+
+**Consequences:**
+The UI provides a way for students to address agents explicitly (dropdown or prefix convention). `src/agents/router.py` first checks for explicit addressing, then falls back to LLM classification only when the target is ambiguous. Router logic is lightweight for the common case.
+
+---
+
+## ADR-010: Node Revelation Mechanism
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+When an agent responds, the system needs to know which patient state graph nodes were revealed in that response — to mark them as revealed and update the graph. The question was how to detect what was revealed.
+
+**Options considered:**
+- A) Post-hoc text matching — scan the response text for keywords after the fact
+- B) Structured agent output — agents return JSON with `response_text`, `revealed_nodes[]`, and `emotional_state`
+
+**Decision:** Structured agent output (Option B)
+
+**Reasoning:**
+Text matching is fragile — "I used to have a cigarette habit" won't match a `smoking` keyword. The agent itself knows what it revealed because it was instructed to reveal it. Having the agent declare its own output in structured JSON is reliable, explicit, and gives `emotional_state` tracking for free. The tradeoff is that all agent prompts must request JSON output — but this is an architecture-level constraint that's better decided now than retrofitted later.
+
+**Consequences:**
+Every agent returns a structured response: `{"response_text": "...", "revealed_nodes": [...], "emotional_state": "..."}`. All agent prompts in `src/agents/` are written to produce this format. The memory manager reads `revealed_nodes` to update the state graph after each turn. Emotional state is available for the conversation arc and final evaluation.
+
+---
+
+## ADR-011: Rubric Design Philosophy
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The evaluation rubric (checklist of what a good student should cover) is defined in static scenario JSON files. But the patient is generated dynamically per session by an LLM. A conflict arises: what if the generated patient's history doesn't match a rubric item (e.g., rubric says "ask about smoking" but the patient is a non-smoker)?
+
+**Options considered:**
+- A) Content-based rubric — rubric items only apply if the patient's generated profile satisfies the precondition
+- B) Process-based rubric — rubric rewards asking the question regardless of the patient's actual answer
+
+**Decision:** Process-based rubric (Option B)
+
+**Reasoning:**
+Option A requires the scenario generator to guarantee every rubric precondition is satisfied in the generated patient — hard to enforce reliably with an LLM. Option B is simpler and more pedagogically defensible: a good clinician asks about smoking history with every cardiac patient, regardless of whether they suspect it. The rubric teaches *what questions to ask*, not *what answers to find*. This separates the evaluation concern from the generation concern cleanly.
+
+**Consequences:**
+Scenario JSON files define process-based rubric items ("asked about smoking history", "asked about family cardiac history"). The judge LLM evaluates whether the student asked — not whether the patient confirmed. The scenario generator has no obligation to satisfy rubric preconditions in the generated patient profile.
+
+---
+
+## ADR-012: Fallback Trigger Conditions
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Groq/Llama is the fallback provider when Gemini fails. The spec named Groq as fallback but didn't define when fallback triggers. This needed to be decided before writing `client.py`.
+
+**Options considered:**
+- A) Fallback only after all retries exhausted — always attempt full backoff before switching
+- B) Immediate fallback on 5xx, backoff-then-fallback on 429 — distinguish error types
+- C) No automatic fallback — log the error and surface it to the user
+
+**Decision:** Hybrid (Option B) — immediate fallback on 5xx server errors, fallback after backoff exhausts on 429 rate limit errors
+
+**Reasoning:**
+A 5xx error means the provider is down — retrying the same provider is pointless, switch immediately. A 429 rate limit error is transient — brief backoff may resolve it without needing the fallback. Exhausting backoff (1s, 2s, 4s, 8s = ~15 seconds) before switching is acceptable UX for a learning tool. Option C degrades the user experience unnecessarily when a working fallback exists.
+
+**Consequences:**
+`src/llm/retry.py` implements exponential backoff for 429s. `src/llm/client.py` checks error type: 5xx triggers immediate fallback, 429 triggers retry → fallback. The fallback provider/model is defined per-agent in `AGENT_CONFIG` as an optional field. If no fallback is configured for an agent and all retries fail, the error is raised and handled by the API layer.
+
+---
+
+## ADR-013: RAG Corpus Strategy
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The RAG pipeline needs a corpus of clinical cases to embed and retrieve from. The question was where this corpus comes from initially.
+
+**Options considered:**
+- A) Synthetic corpus only — generate cases with Claude, use throughout the project
+- B) Real clinical cases only — source from USMLE banks, Open Clinical, MedQA dataset
+- C) Hybrid — start synthetic, add real cases after the pipeline is validated
+
+**Decision:** Start synthetic, add real cases post-MVP (Option C, phased)
+
+**Reasoning:**
+Building the RAG pipeline (embedder, retriever, ChromaDB ingestion) should happen before data sourcing work. Validating that retrieval works correctly is easier with synthetic cases you control. Adding real cases later doesn't require changing the pipeline — just adding documents to the corpus. Real data work is time-consuming and shouldn't block learning the AI engineering patterns. The synthetic corpus is honest about its nature in the codebase (clearly labeled as synthetic).
+
+**Consequences:**
+`src/rag/corpus/` initially contains synthetic clinical case text files generated for this project. The pipeline is designed to ingest any text file in that directory. Adding real cases post-MVP means dropping files into that folder and re-running the ingestion script — no code changes required.
+
+---
+
+## ADR-014: Database Session Lifecycle & Injection
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+When a request arrives, something must create a SQLAlchemy session (the unit-of-work that batches reads/writes into one transaction), decide how long it lives, and hand it to `crud.py`. The choice shapes every CRUD function signature, every route, and the test strategy.
+
+**Options considered:**
+- A) Each CRUD function opens, commits, and closes its own session internally
+- B) Session-per-request: created at the start of a request via a FastAPI dependency, passed into CRUD functions as a parameter, committed once at the end
+- C) One global, long-lived session shared across the whole app
+
+**Decision:** Session-per-request, injected as a dependency (Option B)
+
+**Reasoning:**
+Option A reads cleanly at the call site but makes every CRUD call its own transaction — so multi-step operations ("add a turn AND mark nodes revealed") can't be made atomic. Option C is a known anti-pattern: sessions are not task-safe and accumulate state, causing cross-request data bleed under concurrency. Option B is the FastAPI-standard unit-of-work: `get_db` yields a session and guarantees cleanup, routes declare `Depends(get_db)`, and CRUD functions take `db` as their first argument. It is the only option that gives atomic multi-step operations, and it makes the layer testable — tests override the dependency to point at an in-memory SQLite database (a real-but-disposable DB, no mocks). This pairs with the `lru_cache`/`dependency_overrides` pattern from ADR-008.
+
+**Consequences:**
+`src/db/session.py` exposes an async-generator `get_db` dependency that yields a session, commits on success, and rolls back on exception. Every `crud.py` function takes an `AsyncSession` as its first parameter and `flush`es (to assign primary keys) rather than committing — the transaction boundary is owned by the request. Tests use an in-memory engine with `StaticPool` (one shared connection so the schema survives across operations). SQLite's single-writer limitation is irrelevant here because one student drives one session at a time.
+
+---
+
+## ADR-015: JSON Column Storage Strategy
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Several columns hold structured data as JSON: `patient_profile_json`, `state_snapshot_json` (the serialized NetworkX graph), `revealed_nodes_json`, and the evaluation's `rubric_items_json` / `covered_items_json` / `missed_items_json`. The question is how the ORM models type these columns.
+
+**Options considered:**
+- A) Raw `TEXT` columns; callers do `json.dumps()` on write and `json.loads()` on read
+- B) SQLAlchemy's `JSON` column type; assign a Python dict/list, read one back, serialization handled by the column
+
+**Decision:** SQLAlchemy `JSON` columns (Option B)
+
+**Reasoning:**
+Option A scatters `json.dumps`/`json.loads` across the codebase — every one a place to forget a conversion, store a Python `repr` instead of valid JSON, or double-encode a string. Option B centralizes serialization in the column definition: assign a dict, get a dict. Fewer bugs, cleaner reads, and consistent with the project-wide "typed structured data, not stringly-typed" instinct (same reasoning as choosing typed `AgentLLMConfig` over dicts in ADR-006). Under SQLite the data is stored as text either way, so this honors the spec's `TEXT` intent at the storage level while giving a better Python interface.
+
+**Consequences:**
+Models declare these columns as `JSON`. CRUD functions accept and return Python dicts/lists. The boundary stays crisp: serializing the NetworkX graph to a dict is the state layer's job (`state/serializer.py`); the db layer just persists whatever dict it is handed — it never knows about graphs.
+
+---
+
+## ADR-016: Schema Management — create_all now, Alembic deferred
+**Date:** June 2026
+**Status:** Accepted (temporary — see trigger below)
+
+**Context:**
+Tables must exist before any write. There are two ways to make that happen, and they differ in how they handle *changes* to the schema over time.
+
+**Options considered:**
+- A) `Base.metadata.create_all` — on startup, create any missing tables from the models
+- B) Alembic migrations — versioned, reversible schema-change scripts from day one
+
+**Decision:** `create_all` now; Alembic deferred to post-MVP (Option A, temporarily)
+
+**Reasoning:**
+`create_all` is one line and perfect while the schema is still moving and there is no precious data — but it only *creates missing tables*; it will not alter an existing one, so adding a column later silently does nothing. Alembic handles exactly that, but it is real overhead (a migrations directory, an autogenerate-and-review workflow per change) aimed at a problem we do not yet have: evolving a live database with data we cannot drop. Deferring is correct, but this is the one deferral with a sharp edge, so the trigger to switch is named explicitly.
+
+**Consequences:**
+`src/db/session.py` provides `init_db()` calling `create_all`. During development, a schema change means deleting the dev `.db` file and letting `create_all` rebuild it. **Trigger to adopt Alembic:** the first time we must change a table that already holds data we care about. Pairs with ADR-004 (database strategy).
+
+---
+
+*New decisions will be added here as the project is built.*
+*Each entry should take ~5 minutes to write. Date it, describe the context, log the options you considered, and record why you chose what you chose.*

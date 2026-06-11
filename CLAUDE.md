@@ -57,7 +57,7 @@ AGENT_CONFIG = {
     "nurse":              {"provider": "gemini", "model": "gemini-2.5-flash-lite"},
     "family":             {"provider": "gemini", "model": "gemini-2.5-flash-lite"},
     "judge":              {"provider": "groq",   "model": "llama-3.3-70b-versatile"},
-    "scenario_generator": {"provider": "gemini", "model": "gemini-2.5-flash"},
+    "scenario_generator": {"provider": "gemini", "model": "gemini-3.1-flash-lite"},
 }
 ```
 
@@ -96,7 +96,8 @@ Ask before making structural changes to the file layout.
 Update `docs/project_status.md` after each completed component.
 Update `docs/changelog.md` after each working milestone.
 Do not modify `docs/project_spec.md` — that is the source of truth.
-
+Do not modify `docs/decisions.md` — that is maintained by the engineer, not Claude Code.
+When I make a decision mid-session, I will tell you what I decided and why. Format it as an ADR entry following the structure in `docs/decisions.md` and add it to that file.
 ---
 
 ## Current Status

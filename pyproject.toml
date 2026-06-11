@@ -1,0 +1,34 @@
+[project]
+name = "patient-simulator"
+version = "0.1.0"
+description = "Multi-agent clinical patient encounter simulator for medical students"
+requires-python = ">=3.11"
+# Dependencies are added per phase as components are built — keeps installs
+# fast and makes it obvious which layer needs what. Heavy deps (chromadb,
+# sentence-transformers) arrive with Phase 3.
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.2",
+    "structlog>=24.1",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.20",
+    "google-genai>=1.0",
+    "groq>=0.11",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# auto: async test functions run without a per-test @pytest.mark.asyncio marker.
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

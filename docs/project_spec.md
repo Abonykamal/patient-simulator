@@ -105,17 +105,21 @@ A multi-agent AI system that simulates clinical patient encounters for medical s
 
 ### Data Flow: Conversation Turn
 ```
-1. Student submits message
-2. Agent router decides which agent responds (patient/nurse/family)
+1. Student submits message, optionally addressed to a specific agent
+   (UI dropdown or "Nurse: ..." prefix)
+2. Agent router resolves the speaker: an explicit address always wins;
+   LLM-based classification is used only when the target is ambiguous
 3. Memory manager constructs context:
    - Last N turns from SQLite
    - Current state graph summary
    - Agent persona and constraints
    - What has/hasn't been revealed
 4. LLM call via abstraction layer
-5. Response returned to student
-6. State graph updated (mark nodes revealed if applicable)
-7. Turn saved to SQLite
+5. Agent returns structured JSON (all agents, always):
+   { "response_text": "...", "revealed_nodes": [...], "emotional_state": "..." }
+6. response_text returned to student
+7. State graph updated: every node in revealed_nodes marked revealed
+8. Turn saved to SQLite
 ```
 
 ### Data Flow: Session End
@@ -259,6 +263,10 @@ patient-simulator/
 │       │   └── evaluation.py    # POST /sessions/{id}/evaluate
 │       └── schemas.py           # Pydantic request/response models
 │
+├── tests/
+│   ├── unit/                    # No-network tests; LLM layer always mocked
+│   └── integration/             # Cross-component tests
+│
 └── frontend/
     └── app.py                   # Streamlit app (calls FastAPI)
 ```
@@ -285,7 +293,8 @@ Request:  { "scenario_type": "chest_pain" }
 Response: { "session_id": "uuid", "scenario_intro": "...", "patient_name": "..." }
 
 # POST /sessions/{id}/turns
-Request:  { "content": "Do you have any chest pain?" }
+# addressed_to is optional; if omitted or ambiguous, the router classifies
+Request:  { "content": "Do you have any chest pain?", "addressed_to": "patient" }
 Response: { "speaker": "patient", "content": "...", "emotional_state": "anxious" }
 
 # GET /sessions/{id}/report
@@ -304,16 +313,28 @@ Response: {
 
 ```python
 # src/core/config.py
-AGENT_CONFIG = {
-    "patient":            {"provider": "gemini", "model": "gemini-2.5-flash-lite"},
-    "nurse":              {"provider": "gemini", "model": "gemini-2.5-flash-lite"},
-    "family":             {"provider": "gemini", "model": "gemini-2.5-flash-lite"},
-    "judge":              {"provider": "groq",   "model": "llama-3.3-70b-versatile"},
-    "scenario_generator": {"provider": "gemini", "model": "gemini-2.5-flash"},
+class AgentLLMConfig(BaseModel):
+    provider: Literal["gemini", "groq"]       # typo in provider = crash at startup
+    model: str
+    fallback: "AgentLLMConfig | None" = None  # consumed by src/llm/client.py
+
+GROQ_LLAMA = AgentLLMConfig(provider="groq", model="llama-3.3-70b-versatile")
+
+AGENT_CONFIG: dict[str, AgentLLMConfig] = {
+    "patient":            AgentLLMConfig(provider="gemini", model="gemini-2.5-flash-lite", fallback=GROQ_LLAMA),
+    "nurse":              AgentLLMConfig(provider="gemini", model="gemini-2.5-flash-lite", fallback=GROQ_LLAMA),
+    "family":             AgentLLMConfig(provider="gemini", model="gemini-2.5-flash-lite", fallback=GROQ_LLAMA),
+    "judge":              GROQ_LLAMA,  # no fallback: a degraded judge silently misleads — fail loudly instead
+    "scenario_generator": AgentLLMConfig(provider="gemini", model="gemini-3.1-flash-lite", fallback=GROQ_LLAMA),
 }
 ```
 
 Changing one agent's model = changing one line in this dict. All agent code calls `llm_client.complete(agent_name, prompt)` and never knows which provider it's using.
+
+**Fallback contract (implemented in `src/llm/client.py`):**
+- On HTTP 429: retry the primary with exponential backoff (1s, 2s, 4s, 8s); switch to `fallback` only after backoff exhausts
+- On HTTP 5xx: switch to `fallback` immediately
+- `fallback is None`: re-raise after backoff — the caller decides how to degrade
 
 ---
 
@@ -346,6 +367,10 @@ Example:
 | Database | SQLite + SQLAlchemy | Full persistence, ORM abstracts DB, trivial Postgres migration later |
 | Vectors | ChromaDB | Library-mode (no server), sufficient for this scale |
 | Logging | structlog (JSON) | Queryable logs from day one; good engineering habit |
+| Agent routing | Explicit UI addressing; LLM classification only for ambiguous messages | Saves one LLM call per turn on a 15 RPM budget; deterministic where possible |
+| Revealed-node tracking | Structured agent output: `{response_text, revealed_nodes, emotional_state}` | Agent declares reveals in-band; far more reliable than post-hoc text matching |
+| Rubric semantics | Process-based: asking counts, regardless of the patient's actual history | Decouples static rubrics from dynamically generated patients |
+| Provider fallback | Optional `fallback` field per agent in AGENT_CONFIG | 429 → after backoff exhausts; 5xx → immediately; provider outage doesn't kill a session |
 
 ---
 
