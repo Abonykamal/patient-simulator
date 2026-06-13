@@ -1,0 +1,24 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 22-year-old university student presents with episodes of breathlessness and
+wheezing that have worsened over the past month. She describes a tight chest
+and an audible whistle when she breathes out, along with a dry cough that wakes
+her in the early hours of the morning. Symptoms flare during exercise, in cold
+air, and when she visits a friend who owns two cats. Between episodes she feels
+completely well.
+
+She has a childhood history of eczema and hay fever, and her mother has asthma.
+She owns a blue reliever inhaler but admits she lost it weeks ago and has been
+managing without. She does not smoke but lives with two flatmates who do, and
+their flat is often smoky.
+
+She is frustrated and a little frightened. The night-time cough is exhausting
+her before exams, and last week she had to stop halfway through a run, gasping,
+which scared her badly. She is anxious about having a serious attack when she is
+alone.
+
+On examination she has a scattered expiratory wheeze and her peak flow is
+reduced, improving after a bronchodilator. The underlying cause is asthma. The
+reversible airflow limitation, nocturnal and exercise-triggered symptoms, atopic
+background, and family history together make the diagnosis clear and highlight
+the need to restart inhaled therapy.

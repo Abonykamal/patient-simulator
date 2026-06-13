@@ -1,0 +1,24 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 52-year-old woman describes a burning pain high in her abdomen, just below the
+breastbone, that has troubled her on and off for several months. It is worst
+after large meals and when she lies down at night, and she often wakes with a
+sour, acid taste at the back of her throat. Sitting up and chewing antacid
+tablets helps within minutes. Spicy food, coffee, and red wine reliably bring
+it on.
+
+She works long hours managing a busy restaurant, eats late, and has gained
+weight over the past two years. She takes no regular medication beyond the
+over-the-counter antacids she now keeps in every handbag. She drinks two or
+three coffees a day and a glass of wine most evenings.
+
+She is dismissive of the whole thing, convinced it is "just stress and bad
+eating," and only came because a friend frightened her by mentioning that
+heartburn can sometimes be the heart. She is impatient and keen to get back to
+work.
+
+On examination her abdomen is soft with mild epigastric tenderness and no
+alarming features. The underlying cause is gastro-oesophageal reflux disease.
+The burning retrosternal pain, acid regurgitation, nocturnal and postural
+aggravation, and clear dietary triggers, all relieved by antacids, point to
+reflux rather than a cardiac or surgical cause.

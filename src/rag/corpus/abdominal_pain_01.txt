@@ -1,0 +1,24 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 19-year-old man presents with abdominal pain that began about eighteen hours
+ago. It started as a vague ache around his navel, but over the last several
+hours it has shifted to the right lower side and become sharp and constant.
+Walking, coughing, and the car journey to hospital all made it worse. He has no
+appetite, felt nauseated, and vomited once. He thinks he may have a slight
+fever.
+
+He is a first-year engineering student, normally fit and well, on no
+medication, and has never been in hospital before. He plays football twice a
+week but could not face training today.
+
+He is frightened and clearly out of his depth. This is the first time he has
+dealt with a medical problem away from his parents, and he keeps asking whether
+he is going to need surgery and whether someone has called his mother. He is
+trying to be brave but is visibly close to tears.
+
+On examination he lies still, reluctant to move, with tenderness and guarding in
+the right iliac fossa and pain on releasing pressure there. His temperature is
+mildly raised. The underlying cause is acute appendicitis. The classic
+migration of pain from the umbilicus to the right lower quadrant, anorexia,
+low-grade fever, and localized peritoneal signs indicate an inflamed appendix
+requiring urgent surgical assessment.

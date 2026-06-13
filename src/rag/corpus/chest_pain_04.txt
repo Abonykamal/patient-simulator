@@ -1,0 +1,23 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 34-year-old man arrives at the emergency department convinced he is having a
+heart attack. About forty minutes ago, while sitting at his desk before a major
+work presentation, he felt his chest tighten, his heart begin to race, and a
+wave of breathlessness wash over him. His hands and lips began to tingle and he
+felt detached, as though something terrible was about to happen. The episode
+peaked within ten minutes and is now slowly settling.
+
+He has had three similar episodes over the past two months, each during periods
+of stress, and was seen twice before with normal ECGs and blood tests. He has
+no cardiac risk factors, does not smoke, drinks several coffees a day, and
+recently went through a difficult separation. He takes no medication.
+
+Emotionally he is distressed and embarrassed. He says he feels foolish for
+keeping coming back, but in the moment the fear of dying is completely real and
+he cannot talk himself out of it. He has started avoiding meetings and
+caffeine, and worries this is "taking over his life."
+
+The underlying cause is a panic attack. The rapid onset, peripheral tingling
+from hyperventilation, sense of impending doom, clear psychological trigger,
+and repeatedly normal cardiac workups identify an anxiety disorder rather than
+a cardiac emergency — though the distress is genuine and disabling.

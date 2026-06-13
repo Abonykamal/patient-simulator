@@ -1,0 +1,23 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 27-year-old woman presents with a severe headache that has been building for
+the past six hours. The pain is throbbing, concentrated over her right temple,
+and rated 8 out of 10. Bright light and noise are unbearable, and she feels
+nauseated. About twenty minutes before the pain began she noticed shimmering
+zig-zag lines drifting across her vision, which faded as the headache set in.
+She has retreated to a dark, quiet room.
+
+She has had similar headaches since her late teens, perhaps once a month, often
+around her period or after a poor night's sleep. Her mother and sister get the
+same kind. She takes simple painkillers, which help only if she catches an
+attack early, and she avoids known triggers like red wine and skipped meals.
+
+She is distressed and tearful, mostly from the pain and from frustration: she
+has an important exam tomorrow and knows this will wipe out the rest of her day.
+She has already had to leave work early twice this month for the same reason.
+
+On examination she is neurologically intact between the visual symptoms and the
+headache, with no focal deficit. The underlying cause is migraine with aura.
+The unilateral throbbing pain, photophobia and phonophobia, nausea, preceding
+visual aura, hormonal and sleep triggers, and strong family history are
+characteristic.

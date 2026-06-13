@@ -1,0 +1,23 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 60-year-old man presents with a headache that has been present since he woke
+this morning, felt mainly at the back of his head. He also reports feeling
+generally unwell, slightly dizzy, and says his vision has seemed a little blurry
+at times. He cannot recall having headaches like this before. A practice nurse
+checked his blood pressure at a pharmacy yesterday and told him it was "very
+high" and that he should see someone.
+
+He was diagnosed with hypertension several years ago and started on tablets, but
+he stopped taking them many months ago because he "felt fine" and disliked the
+side effects. He has not seen his doctor in over a year. He works as a
+long-distance lorry driver, eats mostly at roadside cafés, and adds salt to most
+meals.
+
+He is dismissive and a little impatient, insisting he has "always been
+healthy" and that the fuss is unnecessary. He is reluctant to accept that
+anything is wrong and is worried mainly about losing his driving medical.
+
+On examination his blood pressure is markedly elevated at 212/124 mmHg, with an
+otherwise non-focal neurological examination. The underlying cause is a
+hypertensive headache from severely uncontrolled blood pressure, driven by
+stopped medication, and requires careful evaluation and treatment.

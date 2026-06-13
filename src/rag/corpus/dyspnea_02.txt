@@ -1,0 +1,22 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 74-year-old man reports that over the past two months he has become
+increasingly short of breath. At first it was only when walking to the corner
+shop; now he struggles to cross a room. He sleeps propped up on three pillows
+because lying flat makes him feel like he is suffocating, and twice this week he
+woke in the night gasping and had to sit on the edge of the bed. His ankles are
+swollen by evening and he has gained four kilograms in a fortnight.
+
+He had a heart attack six years ago and has long-standing high blood pressure.
+He takes a number of tablets including a diuretic, but confesses he often skips
+the "water pill" when he is going out because it sends him to the toilet too
+often. He used to enjoy gardening but can no longer manage it.
+
+He is weary and quietly frightened by how fast he is declining. He has not told
+his children how breathless he has become because he does not want to worry
+them or "be a burden."
+
+On examination he has crackles at both lung bases, a raised jugular venous
+pressure, and pitting ankle edema. The underlying cause is decompensated heart
+failure. Orthopnea, paroxysmal nocturnal dyspnea, fluid retention, and his
+cardiac history point to a failing pump worsened by missed diuretic doses.

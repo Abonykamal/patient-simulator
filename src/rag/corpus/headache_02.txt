@@ -1,0 +1,23 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 41-year-old man describes a dull, pressing headache that he gets several times
+a week, usually building through the afternoon. He likens it to a tight band
+squeezing around his whole head, affecting both sides equally. It is a steady
+ache rather than a throb, never severe enough to stop him working, and not made
+worse by light, noise, or movement. He has no nausea and no visual symptoms.
+
+He works long hours as an accountant, spends most of the day hunched over two
+monitors, and has been under pressure approaching the end of the financial year.
+He sleeps poorly, drinks a lot of coffee to stay alert, and rarely takes
+breaks. He often notices tightness in his neck and shoulders by evening. He
+takes ibuprofen most days, which takes the edge off.
+
+He is matter-of-fact and a little dismissive, and came in mainly because his
+partner worried he was taking painkillers too often. He is more concerned about
+his deadlines than the headaches themselves.
+
+On examination he has tender, tight muscles across the back of his neck and
+shoulders, with a normal neurological examination. The underlying cause is
+tension-type headache. The bilateral, band-like, non-throbbing pain without
+migrainous features, clearly linked to stress, posture, and muscle tension,
+distinguishes it from migraine or a sinister secondary cause.

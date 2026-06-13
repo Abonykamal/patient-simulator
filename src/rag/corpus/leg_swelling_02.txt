@@ -1,0 +1,23 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 70-year-old man presents with swelling of both legs that has crept up over the
+past few weeks. The swelling is worst around his ankles by the end of the day
+and eases a little overnight. Pressing on his shins leaves a dent that slowly
+fills back in. He has also noticed he gets breathless climbing stairs and needs
+an extra pillow at night to sleep comfortably. There is no pain, redness, or
+warmth in either leg.
+
+He has long-standing high blood pressure and coronary artery disease, with a
+stent placed four years ago. He takes several heart tablets and a water tablet,
+though he admits he is not always good at remembering them. He has gained weight
+recently despite eating less.
+
+He is weary and inclined to brush it off as "just getting old," and his wife
+finally persuaded him to come. He is more bothered by the breathlessness than
+the legs, and quietly worried about becoming dependent.
+
+On examination he has symmetrical pitting edema to mid-shin, a raised jugular
+venous pressure, and fine crackles at both lung bases. The underlying cause is
+fluid overload from heart failure. The bilateral, painless, dependent pitting
+edema combined with orthopnea, exertional breathlessness, and his cardiac
+history points to a systemic cause rather than a local venous one.

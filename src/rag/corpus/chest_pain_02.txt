@@ -1,0 +1,23 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 67-year-old man describes a tight, pressure-like ache across the center of
+his chest that comes on whenever he climbs the two flights of stairs to his
+apartment or walks uphill in cold weather. The discomfort lasts a few minutes,
+never more than five, and reliably goes away when he stops and rests. It has
+been happening for about eight months and follows a predictable pattern. He
+denies pain at rest and denies sweating or nausea during episodes.
+
+He has known coronary artery disease, diagnosed after an angiogram three years
+ago, along with hypertension and hyperlipidemia. He takes aspirin, a statin,
+metoprolol, and keeps a nitroglycerin spray that he uses "maybe once a week."
+He is a retired plumber, walks his dog daily, and quit smoking in his forties.
+
+His manner is calm, almost resigned. He has lived with this for so long that he
+has learned to pace himself and plan his errands around it. He came in today
+only because his wife insisted after he had two episodes in one morning. He is
+mildly embarrassed about "making a fuss."
+
+The underlying cause is stable exertional angina from fixed coronary stenosis.
+The hallmark is its predictability: brought on by a reproducible level of
+exertion and promptly relieved by rest, distinguishing it from an acute
+coronary event.

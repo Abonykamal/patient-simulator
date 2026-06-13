@@ -1,0 +1,23 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 63-year-old woman presents to the emergency department with crushing
+substernal chest pain that began ninety minutes ago while she was carrying
+groceries. The pain radiates to her jaw and left arm and is accompanied by
+profuse sweating, nausea, and a feeling of breathlessness. She rates it 9 out
+of 10 and says it has not eased with rest. Her skin is cool and clammy.
+
+She has a history of hypertension and high cholesterol, both treated, and was
+told two years ago she was "borderline diabetic." She smoked half a pack a day
+for thirty years and quit only last year. Her father died of a heart attack at
+sixty. She takes amlodipine and a statin but admits she sometimes forgets the
+statin on weekends.
+
+Emotionally she is frightened but keeps insisting it is "probably just bad
+indigestion from lunch," and she initially resisted her daughter's decision to
+call an ambulance. She is worried about who will look after her husband, who
+has dementia, if she is admitted.
+
+The underlying cause is an acute ST-elevation myocardial infarction. The
+combination of classic radiating pain, diaphoresis, autonomic symptoms, and a
+dense cardiac risk-factor profile points to an evolving infarct requiring
+emergent reperfusion.

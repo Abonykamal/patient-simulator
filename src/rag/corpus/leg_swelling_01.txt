@@ -1,0 +1,24 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 48-year-old woman presents with two days of swelling and pain in her left
+calf. The leg feels tight, warm, and tender to touch, and the discomfort
+worsens when she walks or flexes her foot. The calf looks visibly larger and
+slightly redder than the right. There is no injury she can recall and no
+swelling on the other side.
+
+She returned five days ago from a long-haul flight home from a holiday, around
+eleven hours sitting with little chance to move. She takes the combined oral
+contraceptive pill and smokes around ten cigarettes a day. She is otherwise
+well and works as a hairdresser, on her feet most of the day.
+
+She is worried and on edge. A colleague's husband recently died suddenly from a
+blood clot that "started in the leg," and she keeps asking whether the same
+thing could happen to her. She is frightened but also feels slightly foolish for
+"making a fuss over a swollen leg."
+
+On examination the left calf is swollen with a measurable difference in
+circumference, warm, and tender along the deep veins. The underlying cause is a
+deep vein thrombosis. The unilateral warm, tender, swollen calf in the setting
+of recent immobility, oestrogen-containing contraception, and smoking points to
+venous thromboembolism, with the important risk of progression to pulmonary
+embolism.

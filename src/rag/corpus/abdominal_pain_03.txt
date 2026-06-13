@@ -1,0 +1,25 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 31-year-old woman presents with crampy lower abdominal pain that she has had,
+on and off, for more than two years. The pain tends to ease after she opens her
+bowels and is accompanied by bloating and a sense of incomplete emptying. Her
+bowel habit swings between loose stools and constipation, often within the same
+week. Symptoms flare during stressful periods at work and around her menstrual
+cycle. There is no blood in her stool, no weight loss, and no waking at night
+with pain.
+
+She is otherwise well, works in a high-pressure law firm, and takes only
+occasional paracetamol and a probiotic she read about online. She has had blood
+tests and even a normal colonoscopy arranged by a previous doctor, all of which
+were reassuring.
+
+She is anxious and frustrated, and arrives almost defensive. She feels previous
+doctors dismissed her as "just stressed" without taking the disruption to her
+life seriously, and she is worried something has been missed. The
+unpredictability of her symptoms is affecting her confidence at work and her
+social life.
+
+On examination her abdomen is soft with mild generalized tenderness and no
+masses or alarm features. The underlying cause is irritable bowel syndrome. The
+chronic, relapsing pain relieved by defecation, altered bowel habit, stress
+correlation, and consistently normal investigations fit a functional disorder.

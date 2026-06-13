@@ -1,0 +1,22 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 45-year-old woman presents with four days of worsening breathlessness, fever,
+and a cough productive of yellow-green phlegm. She points to a sharp pain low on
+the right side of her chest that stabs when she breathes deeply or coughs. She
+feels hot, drained, and has had shaking chills overnight. A mild head cold the
+week before seemed to settle and then suddenly turned worse.
+
+She is generally healthy, works as a primary school teacher, and takes only an
+occasional antihistamine. She does not smoke. She mentions, almost in passing,
+that everything feels harder because she is a single parent of two young
+children and has no one to help while she is unwell.
+
+She is anxious and exhausted. Her main worry is not herself but who will collect
+the children from school and whether she can afford to take time off work. She
+keeps trying to minimize how ill she feels.
+
+On examination she is febrile at 38.9°C, breathing faster than normal, with
+bronchial breath sounds and crackles over the right lower lung field. The
+underlying cause is community-acquired pneumonia. The acute fever, productive
+cough, pleuritic chest pain, and focal chest findings following a viral
+prodrome point to a bacterial lower respiratory tract infection.

@@ -1,0 +1,24 @@
+# SYNTHETIC CASE — generated for RAG pipeline testing
+
+A 29-year-old woman comes to an urgent care clinic worried about a sharp pain
+on the left side of her chest that has been present for three days. The pain is
+well localized to a spot near her breastbone, feels stabbing rather than
+heavy, and gets noticeably worse when she takes a deep breath, twists her
+torso, or presses on the area. Lying still helps. She has no sweating,
+no nausea, and no shortness of breath at rest.
+
+She is otherwise healthy, takes no regular medication, does not smoke, and has
+no family history of early heart disease. She recently started an intensive
+weightlifting program at a new gym and had a particularly heavy chest workout
+four days ago. She also moved house last weekend and carried boxes for hours.
+
+She is visibly anxious. She searched her symptoms online, read about heart
+attacks in young people, and has barely slept worrying she is dying. She keeps
+apologizing for "probably overreacting" but says the fear has been
+overwhelming.
+
+On examination the pain is reproduced exactly by pressing on the
+costochondral junctions. The underlying cause is musculoskeletal chest
+pain — costochondritis following unaccustomed exertion. The reproducibility on
+palpation and the positional, pleuritic quality point away from a cardiac
+source despite the patient's intense fear.
