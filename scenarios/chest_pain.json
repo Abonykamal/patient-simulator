@@ -1,0 +1,145 @@
+{
+  "scenario_id": "chest_pain",
+  "scenario_name": "Acute Chest Pain",
+  "patient_name": "John Doe",
+  "scenario_intro": "A 58-year-old man is brought into the emergency department clutching his chest. He looks pale and frightened. He is able to speak in short sentences.",
+  "nodes": [
+    {
+      "id": "chest_pain",
+      "label": "crushing substernal chest pain",
+      "category": "symptom",
+      "importance": "critical",
+      "detail": "A heavy, crushing pressure in the centre of the chest that started about two hours ago while resting.",
+      "disclosure_difficulty": "volunteered",
+      "metadata": { "onset": "2 hours ago", "quality": "crushing pressure", "severity": "8/10" }
+    },
+    {
+      "id": "radiation",
+      "label": "pain radiating to the left arm and jaw",
+      "category": "symptom",
+      "importance": "critical",
+      "detail": "The pain spreads down the left arm and up into the jaw.",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "dyspnea",
+      "label": "shortness of breath",
+      "category": "symptom",
+      "importance": "critical",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "diaphoresis",
+      "label": "profuse sweating",
+      "category": "symptom",
+      "importance": "relevant",
+      "disclosure_difficulty": "volunteered"
+    },
+    {
+      "id": "nausea",
+      "label": "nausea",
+      "category": "symptom",
+      "importance": "minor",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "elevated_bp",
+      "label": "elevated blood pressure and heart rate",
+      "category": "symptom",
+      "importance": "relevant",
+      "detail": "Objective vitals on arrival.",
+      "metadata": { "systolic": 162, "diastolic": 98, "heart_rate": 104, "unit": "mmHg" }
+    },
+    {
+      "id": "prior_angina",
+      "label": "occasional chest tightness over the past month",
+      "category": "history",
+      "importance": "relevant",
+      "detail": "Brief episodes of chest tightness on exertion that resolved with rest.",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "hypertension",
+      "label": "history of high blood pressure",
+      "category": "history",
+      "importance": "relevant",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "hyperlipidemia",
+      "label": "high cholesterol",
+      "category": "history",
+      "importance": "relevant",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "smoking",
+      "label": "smokes one pack a day for 30 years",
+      "category": "social",
+      "importance": "critical",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "alcohol",
+      "label": "drinks alcohol socially",
+      "category": "social",
+      "importance": "minor",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "med_nonadherence",
+      "label": "often forgets to take blood pressure medication",
+      "category": "medication",
+      "importance": "critical",
+      "detail": "Has a prescription for an antihypertensive but takes it inconsistently.",
+      "disclosure_difficulty": "only_if_asked_directly"
+    },
+    {
+      "id": "family_mi",
+      "label": "father had a heart attack at 55",
+      "category": "family_history",
+      "importance": "critical",
+      "disclosure_difficulty": "if_asked"
+    },
+    {
+      "id": "fear_of_dying",
+      "label": "anxious and afraid he is having a heart attack",
+      "category": "emotional",
+      "importance": "relevant",
+      "disclosure_difficulty": "volunteered"
+    },
+    {
+      "id": "father_death_grief",
+      "label": "becomes withdrawn when his father's death comes up",
+      "category": "emotional",
+      "importance": "minor",
+      "detail": "Lost his father to a heart attack and is frightened of the same fate.",
+      "disclosure_difficulty": "only_if_trust_built"
+    },
+    {
+      "id": "cocaine_use",
+      "label": "used cocaine recreationally over the weekend",
+      "category": "hidden",
+      "importance": "critical",
+      "detail": "A potential precipitant of the chest pain that the patient is embarrassed to volunteer.",
+      "disclosure_difficulty": "only_if_trust_built",
+      "metadata": { "last_use": "2 days ago" }
+    }
+  ],
+  "edges": [
+    { "source": "chest_pain", "target": "radiation", "relation": "radiates_to" },
+    { "source": "chest_pain", "target": "dyspnea", "relation": "associated_symptom" },
+    { "source": "chest_pain", "target": "diaphoresis", "relation": "associated_symptom" },
+    { "source": "chest_pain", "target": "nausea", "relation": "associated_symptom" },
+    { "source": "smoking", "target": "chest_pain", "relation": "risk_factor" },
+    { "source": "hypertension", "target": "chest_pain", "relation": "risk_factor" },
+    { "source": "hyperlipidemia", "target": "chest_pain", "relation": "risk_factor" },
+    { "source": "family_mi", "target": "chest_pain", "relation": "risk_factor" },
+    { "source": "prior_angina", "target": "chest_pain", "relation": "related_history" },
+    { "source": "hypertension", "target": "med_nonadherence", "relation": "related_to" },
+    { "source": "hypertension", "target": "elevated_bp", "relation": "explains" },
+    { "source": "cocaine_use", "target": "chest_pain", "relation": ["risk_factor", "possible_cause"] },
+    { "source": "family_mi", "target": "father_death_grief", "relation": "emotional_trigger" },
+    { "source": "fear_of_dying", "target": "chest_pain", "relation": "emotional_response" }
+  ]
+}

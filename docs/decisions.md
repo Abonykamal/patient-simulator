@@ -363,5 +363,73 @@ Tables must exist before any write. There are two ways to make that happen, and 
 
 ---
 
+## ADR-017: Scenario Node Schema — Strict Core + Open Metadata Bag
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Each patient fact is a node. The schema (`scenarios/schema.py`) validates every scenario — hand-authored now, LLM-generated in Phase 3 — before it becomes a graph. The question was *which* fields are fixed and validated, and whether a node may carry situation-specific fields that the schema doesn't know about (a cardiac case's troponin, a neuro case's GCS).
+
+**Options considered:**
+- A) Fully fixed schema (`extra="forbid"`) — every node has exactly the known fields; a neuro case's `gcs_score` is rejected
+- B) Fully open schema (`extra="allow"`) — accept any field; a typo like `importnce` is silently kept
+- C) Hybrid — a strict, validated core set plus a single free-form `metadata` dict for per-scenario extras
+
+**Decision:** Hybrid (Option C). Core fields = `id`, `label`, `category`, `revealed` (default `False`), `importance` (default `relevant`); optional `detail` and `disclosure_difficulty`; plus an open `metadata: dict`. Core is `extra="forbid"`.
+
+**Reasoning:**
+Option A forces a schema change for every new specialty — directly fighting the goal of LLM-generated multi-specialty scenarios. Option B loses all guarantees: a typo in a core field name surfaces as a silent missing value mid-session. The hybrid keeps the fields the *system* depends on (router, graph summary, rubric) strict so typos fail at load, while the `metadata` bag lets each scenario carry domain-specific data with no schema change. The discipline that keeps this safe: **core logic only reads core fields; `metadata` is for display, LLM context, and agent flavour — never for control flow.** `importance` is carried now (its consumer, the process-based rubric, lands in Phase 7) because it is cheap authored data with a certain future reader. `disclosure_difficulty` lets a scenario mark sensitive facts (substance use, non-adherence) as hard to extract — the realism lever the patient agent will honour in Phase 4.
+
+**Consequences:**
+`ScenarioNode` forbids unknown top-level fields; per-scenario richness goes inside `metadata`. `Scenario` enforces structural integrity once — unique node ids and no dangling edges (an edge naming a node that doesn't exist) — so the builder and every later traversal can assume a sound graph. Adding a new specialty scenario in Phase 8 is a JSON file, not a schema edit. Pairs with ADR-003 (state representation) and ADR-006 (typed-over-stringly-typed instinct).
+
+---
+
+## ADR-018: State Graph Edges — Undirected Associations, Not Reveal Gates
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Nodes are clearly "one clinical fact each." The load-bearing question was what an *edge* means, and which NetworkX graph class backs it. Edges shape whether graph structure drives behaviour or is mere decoration.
+
+**Options considered (edge meaning):**
+- A) Clinical associations — an edge means "these facts are related" (chest pain ↔ radiates-to-arm; smoking ↔ cardiac risk)
+- B) Reveal gates — an edge means "B cannot be revealed until A is" (prerequisite ordering)
+- C) Grouping only — edges just connect a category to its detail nodes
+
+**Options considered (graph class):**
+- `Graph` (undirected, one edge per pair) vs `MultiGraph` (undirected, parallel edges allowed) vs the directed variants
+
+**Decision:** Edges are clinical associations (Option A) on an undirected `networkx.Graph`. Relationship *type* is an edge attribute `relation`, which may be a string or a list of strings when a pair is related in more than one way.
+
+**Reasoning:**
+The spec's bet (ADR-003) is that behaviour emerges from graph structure, which argues for *meaningful* edges between facts — not Option C's near-dict. Option B (gating) was rejected because reveal control already lives with the agent via structured output (ADR-010); a second gating mechanism here would be a conflicting source of truth. Associations are mutual, so an undirected `Graph` is the honest choice. `MultiGraph` was rejected: genuinely parallel relationships between the same pair are rare at our granularity, and a single `relation` attribute (a list when needed) captures multiplicity without making every traversal loop over edge-keys. If a real need for parallel edges ever appears, `Graph → MultiGraph` is a one-line builder change.
+
+**Consequences:**
+`src/state/graph.py` exposes `neighbors(node_id)` so the memory layer can surface "related but still hidden" facts as follow-up hints without imposing an order. Edges carry `relation`; nothing in the system gates reveals on graph structure. The payoff: uncovering `chest_pain` can hint at its still-hidden neighbours (`radiation`, `dyspnea`) for context, while the agent stays in charge of what is actually revealed.
+
+---
+
+## ADR-019: State Graph Serialization — NetworkX Node-Link Format
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+At session end the final graph is snapshotted into the `state_snapshot_json` SQLite column. Something must flatten the live NetworkX graph to a JSON-safe dict and rebuild it losslessly. The round-trip — revealed flags, metadata, and edge relations all preserved — is the whole contract.
+
+**Options considered:**
+- A) NetworkX's built-in `node_link_data` / `node_link_graph` helpers
+- B) A hand-rolled serializer with our own dict shape
+
+**Decision:** NetworkX node-link format (Option A), behind the `serializer.py` seam.
+
+**Reasoning:**
+The built-in helpers are battle-tested and round-trip node/edge attributes for free; the snapshot is an internal artifact, so a pretty custom shape buys nothing. Keeping it behind `serialize` / `deserialize` means callers never see which format we chose — we can change the internals later without touching the db or state layers. The one sharp edge: the `edges=` keyword's default changed across NetworkX versions and the unpinned call emits a `FutureWarning`, so both directions pin `edges="edges"` to keep runtime and test output pristine. A round-trip test (`deserialize(serialize(g))` equals the original) is the executable spec.
+
+**Consequences:**
+`src/state/serializer.py` exposes `serialize(graph) -> dict` and `deserialize(dict) -> PatientStateGraph`. The db layer just persists the dict it is handed and never knows about graphs (ADR-015). Pairs with ADR-003.
+
+---
+
 *New decisions will be added here as the project is built.*
 *Each entry should take ~5 minutes to write. Date it, describe the context, log the options you considered, and record why you chose what you chose.*

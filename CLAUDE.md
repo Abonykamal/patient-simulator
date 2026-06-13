@@ -85,7 +85,7 @@ I am a student learning AI engineering. For every non-trivial implementation:
 3. Add inline comments explaining *why*, not just *what*
 4. After completing a component, summarize: what it does, what calls it, what it calls
 
-Do not fill in sections of `docs/architecture.md` — I will do that after we discuss.
+
 Do not refactor code I haven't reviewed yet.
 Ask before making structural changes to the file layout.
 

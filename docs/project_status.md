@@ -1,8 +1,8 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 1 (Core Infrastructure) complete — 47 unit tests passing
-**Last updated:** 12-June-2026
+**Phase:** Phase 2 (Patient State Graph) complete — 74 unit tests passing
+**Last updated:** 13-June-2026
 
 ---
 
@@ -29,11 +29,11 @@
 - [x] `src/llm/groq.py` — Groq provider (AsyncGroq adapter, SDK retries disabled, _map_error normalization; 3 unit tests on mapping)
 
 ### Phase 2: Patient State Graph (Day 1-2)
-- [ ] `scenarios/schema.py` — Pydantic scenario schema
-- [ ] `scenarios/chest_pain.json` — first scenario file
-- [ ] `src/state/graph.py` — NetworkX graph implementation
-- [ ] `src/state/builder.py` — builds graph from patient JSON
-- [ ] `src/state/serializer.py` — graph ↔ JSON serialization
+- [x] `scenarios/schema.py` — Pydantic scenario schema (strict core + open `metadata` bag, unique-id & dangling-edge validation, `load_scenario`; ADR-017; 8 unit tests)
+- [x] `scenarios/chest_pain.json` — first scenario file (16 nodes across all categories, hidden cocaine-use precipitant, vitals in metadata; 3 unit tests)
+- [x] `src/state/graph.py` — `PatientStateGraph` over undirected NetworkX graph (`mark_revealed`/`is_revealed`/`neighbors`/`summary`; edges = associations not gates, ADR-018; 8 unit tests)
+- [x] `src/state/builder.py` — `build_graph(scenario)` copies core + metadata onto nodes (4 unit tests)
+- [x] `src/state/serializer.py` — node-link `serialize`/`deserialize`, round-trip-lossless, warning-free (ADR-019; 4 unit tests)
 
 ### Phase 3: RAG Pipeline (Day 2)
 - [ ] `src/rag/corpus/` — synthetic clinical cases written
@@ -76,11 +76,14 @@
 ---
 
 ## What's Next
-Phase 1 done. Begin Phase 2: Patient State Graph — `scenarios/schema.py` (Pydantic scenario schema), `scenarios/chest_pain.json`, then `src/state/graph.py` → `builder.py` → `serializer.py`.
+Phase 2 done. Begin Phase 3: RAG Pipeline — `src/rag/corpus/` (synthetic clinical cases), `src/rag/embedder.py`, `src/rag/retriever.py` (ChromaDB), `src/rag/generator.py`. The generator's output must validate against `scenarios/schema.py` and build via `src/state/builder.py` — the Phase 2 schema is the contract the generator targets, and `chest_pain.json` is the seed example.
 
-Note: the LLM providers' live network path is not yet exercised (no credentials/integration test). Only the normalization seams are unit-tested. First real Gemini/Groq call happens when an agent or scenario generator runs.
+Note: the LLM providers' live network path is still not exercised (no credentials/integration test). Only the normalization seams are unit-tested. First real Gemini/Groq call happens when an agent or scenario generator runs (Phase 3).
 
-Decisions locked in (reflected in project_spec.md):
+Decisions locked in (reflected in project_spec.md / decisions.md):
+- State graph: undirected NetworkX, edges = clinical associations not reveal gates; relation as edge attribute (str or list), no MultiGraph (ADR-018)
+- Scenario nodes: strict core fields + open `metadata` bag; core logic never branches on metadata (ADR-017)
+- Graph serialization: NetworkX node-link format behind the serializer seam (ADR-019)
 - Router: explicit UI addressing; LLM classification only for ambiguous messages
 - Agents always return structured JSON: response_text, revealed_nodes, emotional_state
 - Rubric is process-based (asking counts regardless of patient's actual history)
