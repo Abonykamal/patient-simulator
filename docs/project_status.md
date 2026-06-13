@@ -1,8 +1,8 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 2 (Patient State Graph) complete — 74 unit tests passing
-**Last updated:** 13-June-2026
+**Phase:** Phase 3 (RAG Pipeline) complete — 90 unit tests passing
+**Last updated:** 14-June-2026
 
 ---
 
@@ -36,10 +36,10 @@
 - [x] `src/state/serializer.py` — node-link `serialize`/`deserialize`, round-trip-lossless, warning-free (ADR-019; 4 unit tests)
 
 ### Phase 3: RAG Pipeline (Day 2)
-- [ ] `src/rag/corpus/` — synthetic clinical cases written
-- [ ] `src/rag/embedder.py` — sentence-transformer embedding
-- [ ] `src/rag/retriever.py` — ChromaDB retrieval
-- [ ] `src/rag/generator.py` — scenario generation from retrieved cases
+- [x] `src/rag/corpus/` — 15 synthetic clinical cases across 5 presentations (chest pain ×4, dyspnea ×3, abdominal pain ×3, headache ×3, leg swelling ×2), varied cause/age/severity/emotion; whole-case docs, filename = category (ADR-013/021)
+- [x] `src/rag/embedder.py` — `Embedder` over local ONNX `all-MiniLM-L6-v2` (free/offline/deterministic, 384-dim); single text→vector seam (ADR-020; 4 unit tests)
+- [x] `src/rag/retriever.py` — `Retriever` over ChromaDB: `ingest_corpus` (idempotent, strips header, parses category) + `query` (dense semantic + category metadata pre-filter); collection injected (ephemeral tests / persistent app) (ADR-021; 5 unit tests)
+- [x] `src/rag/generator.py` — `ScenarioGenerator`: retrieve top-3 → synthesise → validate-and-repair against `scenarios/schema.py` (≤`max_repairs`); LLM injected, no real calls in tests; output builds via `state/builder.py` (ADR-022; 7 unit tests)
 
 ### Phase 4: Agents (Day 3)
 - [ ] `src/agents/base.py` — base agent class
@@ -76,11 +76,16 @@
 ---
 
 ## What's Next
-Phase 2 done. Begin Phase 3: RAG Pipeline — `src/rag/corpus/` (synthetic clinical cases), `src/rag/embedder.py`, `src/rag/retriever.py` (ChromaDB), `src/rag/generator.py`. The generator's output must validate against `scenarios/schema.py` and build via `src/state/builder.py` — the Phase 2 schema is the contract the generator targets, and `chest_pain.json` is the seed example.
+Phase 3 done. Begin Phase 4: Agents — `src/agents/base.py`, `src/agents/patient.py`, `src/agents/nurse.py`, `src/agents/family.py`, `src/agents/router.py`. Agents call `llm.client.complete` (never raw SDKs), return structured JSON `{response_text, revealed_nodes, emotional_state}` (ADR-010), and read the `PatientStateGraph` (summary for context, `mark_revealed` after each turn). The patient agent honours each node's `disclosure_difficulty` (ADR-017). The router uses explicit UI addressing with LLM classification only for ambiguous messages (ADR-009).
 
-Note: the LLM providers' live network path is still not exercised (no credentials/integration test). Only the normalization seams are unit-tested. First real Gemini/Groq call happens when an agent or scenario generator runs (Phase 3).
+Note: the LLM providers' live network path is **still not exercised** (no credentials/integration test). Phase 3's generator is unit-tested with an injected fake LLM, so no real Gemini/Groq call has yet happened. The first real provider call occurs when the generator or an agent runs against live credentials — worth a single smoke test early in Phase 4.
+
+Embedding model note: the ONNX `all-MiniLM-L6-v2` (~80 MB) downloads once on first embed to `~/.cache/chroma`, then runs offline. ChromaDB's persistent store lives at `chroma_data/` (gitignored).
 
 Decisions locked in (reflected in project_spec.md / decisions.md):
+- RAG embeddings: local ONNX MiniLM behind the `Embedder` seam — free/offline/deterministic, no torch (ADR-020)
+- RAG retrieval: whole-case documents (no chunking), dense semantic + category metadata pre-filter, top-3, no hybrid/BM25 (ADR-021)
+- Scenario generation: synthesise from top-3, validate-and-repair against the schema, LLM injected (ADR-022)
 - State graph: undirected NetworkX, edges = clinical associations not reveal gates; relation as edge attribute (str or list), no MultiGraph (ADR-018)
 - Scenario nodes: strict core fields + open `metadata` bag; core logic never branches on metadata (ADR-017)
 - Graph serialization: NetworkX node-link format behind the serializer seam (ADR-019)

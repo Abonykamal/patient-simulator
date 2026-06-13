@@ -431,5 +431,80 @@ The built-in helpers are battle-tested and round-trip node/edge attributes for f
 
 ---
 
+## ADR-020: RAG Embeddings — Local ONNX MiniLM Behind an Embedder Seam
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Retrieval needs text turned into vectors (embeddings). Two questions: *where* do embeddings come from, and *who owns* the call. The corpus is small and the project must stay free and offline-friendly (no quota burned in tests).
+
+**Options considered (source):**
+- A) Local `sentence-transformers` (`all-MiniLM-L6-v2`, PyTorch runtime)
+- B) A hosted embedding API (Gemini/OpenAI)
+- C) The same `all-MiniLM-L6-v2` model in its ONNX-quantized form, which ChromaDB bundles
+
+**Options considered (ownership):**
+- Explicit `src/rag/embedder.py` seam that produces vectors, vs letting ChromaDB embed internally via its default embedding function
+
+**Decision:** Local MiniLM via ChromaDB's ONNX runtime (Option C), wrapped behind an explicit `Embedder` (`src/rag/embedder.py`). Vectors are passed to Chroma explicitly at add and query time.
+
+**Reasoning:**
+A local model is free, offline, and deterministic, so embeddings cost no quota and tests can assert on *real* vectors (similar meaning → closer vectors) instead of mocks. Choosing the ONNX build over `sentence-transformers` keeps the same model family while avoiding a ~1 GB PyTorch install — and `pyproject.toml`'s stated goal is fast installs. The explicit seam mirrors how `llm/client.py` owns provider calls and `core/config.py` owns model choice: model selection lives in exactly one module, so swapping to `sentence-transformers` (or an API) later is a one-file change. Letting Chroma embed internally would hide the model in DB config and make "does similar text embed near similar text" hard to unit-test.
+
+**Consequences:**
+`Embedder.embed(text)` / `embed_batch(texts)` return plain `list[float]` (numpy types never leak past the seam). The model file (~80 MB) downloads once to `~/.cache/chroma` and is offline thereafter. The retriever depends on the embedder, not on any provider. Pairs with ADR-005 (provider-agnostic seam instinct).
+
+---
+
+## ADR-021: RAG Retrieval — Whole-Case Documents, Semantic Search + Metadata Filter
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The retriever stores the synthetic corpus and, at generation time, returns the few cases most relevant to a request. Two design axes had to be settled: how to *chunk* each case, and what *retrieval strategy* to use.
+
+**Options considered (chunking):**
+- A) Whole case = one document = one embedding
+- B) Fixed-size chunks (split each case into smaller pieces)
+- C) Hierarchical (parent/child) chunking
+
+**Options considered (retrieval):**
+- Dense semantic (vector) search; sparse lexical (BM25); hybrid (score-fused dense + sparse)
+
+**Decision:** One case = one document, no chunking. Dense semantic retrieval with a **category metadata pre-filter**, top-`k`=3. The filename prefix (`chest_pain_01` → `chest_pain`) is the source of truth for category; the `# SYNTHETIC CASE` provenance header is stripped before embedding.
+
+**Reasoning:**
+The generator needs *whole, coherent* cases as inspiration — a fragment (just the risk-factors paragraph) is useless to it, and our cases are short enough that there is no token-limit pressure forcing a split. Hierarchical chunking solves a precision-vs-context problem we don't have (the case is already both the precise unit and the full context). On retrieval: the corpus is tiny and the task is meaning-driven ("a case like this presentation"), which is dense search's home turf; lexical recall only starts mattering at much larger scale. ChromaDB also has no native score-fused hybrid, so hybrid would mean hand-rolling BM25 + fusion for no benefit. The high-value lever is the metadata filter: storing the category as metadata lets a `where` clause *hard-guarantee* a cardiac request never returns a respiratory case — something neither plain semantic nor hybrid ranking guarantees. Stripping the shared header avoids adding identical noise to every vector.
+
+**Consequences:**
+`Retriever.ingest_corpus(dir)` (idempotent via `upsert`) and `query(text, category, k)` returning typed `RetrievedCase` objects. The Chroma collection is injected, so tests use an in-memory (ephemeral) collection and the app uses a persistent on-disk one (`chroma_data/`, gitignored) — embed-once, survive restarts. The filename naming scheme is now load-bearing, not cosmetic. Pairs with ADR-013 (synthetic corpus) and ADR-020.
+
+---
+
+## ADR-022: Scenario Generation — Synthesize From Top-k, Validate-and-Repair Against the Schema
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The generator is the top of the RAG layer and the one piece that calls an LLM. An LLM returns free text, but the system needs a schema-valid `Scenario`. Two questions: how should retrieved cases be *used*, and how do we *guarantee* valid output given that models sometimes emit malformed or schema-violating JSON.
+
+**Options considered (grounding):**
+- A) Retrieve one case and reformat it into the schema (a converter)
+- B) Retrieve top-k (≈3) cases as *inspiration* and synthesize a new patient blending them
+
+**Options considered (validity):**
+- C) Generate once; if it fails validation, fail the request
+- D) Validate against `scenarios/schema.py`; on failure, feed the exact error back and re-prompt, up to a small retry cap
+
+**Decision:** Synthesize a new patient from the top-3 retrieved cases (Option B) and use a validate-and-repair loop (Option D, `max_repairs`=2 by default). Parsing tolerates markdown fences / surrounding prose (first `{` … last `}`). The LLM call is injected (`complete_fn`, defaulting to `llm.client.complete`). On exhausting repairs, raise `ScenarioGenerationError`.
+
+**Reasoning:**
+Reformatting one case (Option A) would make every cardiac session essentially the same patient — defeating the reason RAG exists over simply authoring more JSON files; synthesis from several cases yields variety (varied age, severity, emotional context). Single-shot failure (Option C) is fragile UX: one bad field aborts session start. The repair loop turns the Phase 2 schema into a *self-correction signal* — its error messages already name the offending field or dangling id (`edge references nonexistent node id: 'foo'`), which is precisely the instruction the model needs to fix it. The cost (a couple of extra LLM calls) is paid only when something is wrong. Injecting `complete_fn` keeps the whole loop testable with canned responses and no real provider call — the same no-quota rule the rest of the suite follows.
+
+**Consequences:**
+`ScenarioGenerator(retriever, complete_fn, k, max_repairs)` with `generate(ScenarioRequest)` returning a schema-valid `Scenario` that is guaranteed to build via `src/state/builder.py`. `scenario_generator` routes through `AGENT_CONFIG` (Gemini `gemini-3.1-flash-lite`), so the first *real* provider call in the system happens here when run outside tests. `ScenarioRequest.category` must match a corpus specialty since it drives the retrieval filter. Pairs with ADR-010 (structured output instinct), ADR-012 (fallback), and ADR-017 (the schema being repaired against).
+
+---
+
 *New decisions will be added here as the project is built.*
 *Each entry should take ~5 minutes to write. Date it, describe the context, log the options you considered, and record why you chose what you chose.*

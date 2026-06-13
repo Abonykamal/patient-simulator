@@ -53,7 +53,7 @@ subpackage is one layer:
 | DB | `src/db/` | Async SQLAlchemy models, session lifecycle, CRUD | ✅ Phase 1 |
 | State | `src/state/` | In-memory NetworkX patient graph: build, query, serialize | ✅ Phase 2 |
 | Scenarios | `scenarios/` | Scenario schema + authored patient JSON files | ✅ Phase 2 |
-| RAG | `src/rag/` | Embedding, retrieval, scenario generation; ChromaDB | 🚧 Phase 3 |
+| RAG | `src/rag/` | Embedding, retrieval, scenario generation; ChromaDB | ✅ Phase 3 |
 | Agents | `src/agents/` | Patient / nurse / family agents + router | 🚧 Phase 4 |
 | Memory | `src/memory/` | Episodic memory, context-window construction | 🚧 Phase 5 |
 | API | `src/api/` | FastAPI routes (thin) | 🚧 Phase 6 |
@@ -115,10 +115,37 @@ uncovered so far.
   node-link format (pinned `edges="edges"`); round-trip-lossless, JSON-safe for
   the `state_snapshot_json` column (ADR-015, ADR-019).
 
-## 6. RAG Layer — 🚧 To be filled in (Phase 3)
+## 6. RAG Layer (✅ Phase 3)
 
-_Embedder, retriever, ChromaDB ingestion, and scenario generation from retrieved
-cases. Output must validate against `scenarios/schema.py`._
+Turns a library of synthetic clinical cases into *fresh, varied, schema-valid*
+patients on demand. The chain is bottom-up: embed → retrieve → generate.
+
+- **`src/rag/corpus/`** — 15 synthetic clinical case `.txt` files across five
+  presentations (chest pain, dyspnea, abdominal pain, headache, leg swelling),
+  each varying the underlying cause, demographics, severity, and emotional
+  context. Each file is one whole document (no chunking, ADR-021); its category
+  comes from the filename prefix and a `# SYNTHETIC CASE` header marks
+  provenance (ADR-013).
+- **`src/rag/embedder.py`** — `Embedder`, the single text→vector seam. Wraps the
+  local ONNX `all-MiniLM-L6-v2` model (free, offline, deterministic — no quota,
+  no torch), returning plain 384-dim float vectors. Model choice lives here and
+  nowhere else (ADR-020).
+- **`src/rag/retriever.py`** — `Retriever` over ChromaDB. `ingest_corpus` embeds
+  every case once (idempotent `upsert`), parsing the category from the filename
+  and stripping the provenance header before embedding. `query(text, category,
+  k)` does dense semantic search with a **category metadata pre-filter** — a
+  hard guarantee that a request for one specialty never returns another
+  (ADR-021). The collection is injected: in-memory in tests, on-disk
+  (`chroma_data/`) in the app.
+- **`src/rag/generator.py`** — `ScenarioGenerator`, the only Phase 3 piece that
+  calls an LLM. `generate(ScenarioRequest)` retrieves the top-3 cases for the
+  requested specialty, prompts the model to *synthesize a new patient* inspired
+  by them (not copy one), then parses and validates the output against
+  `scenarios/schema.py`. On failure it feeds the exact validation error back and
+  re-prompts, up to `max_repairs` times — the schema is both the gate and the
+  self-correction signal (ADR-022). The LLM call is injected so tests drive the
+  whole loop with no real provider call. Output is guaranteed to build via
+  `state/builder.py`.
 
 ## 7. Agents Layer — 🚧 To be filled in (Phase 4)
 
@@ -173,8 +200,9 @@ end trigger → transcript from SQLite + rubric from scenario file
 - **SQLite** (`src/db/`) — `sessions`, `conversation_turns`, `evaluations`.
   Session-per-request unit-of-work (ADR-014); structured columns stored as
   `JSON` (ADR-015); schema via `create_all`, Alembic deferred (ADR-016).
-- **ChromaDB** — clinical-case embeddings, queried only at session start for
-  scenario generation. 🚧 arrives in Phase 3.
+- **ChromaDB** (`src/rag/`) — clinical-case embeddings, queried at session start
+  for scenario generation. On-disk collection at `chroma_data/` (gitignored),
+  embedded once from `src/rag/corpus/`; in-memory in tests (ADR-021).
 - **In-memory** — the live `PatientStateGraph` exists only during a session and
   is snapshotted to SQLite at the end (lost on restart, acceptable for MVP;
   ADR-003).
@@ -186,7 +214,10 @@ end trigger → transcript from SQLite + rubric from scenario file
 Test-first (TDD). No real LLM calls in tests (they burn free-tier quota) and no
 real network: provider adapters are tested at their error-normalization seam,
 and the DB uses in-memory SQLite with `StaticPool`. The state layer is pure, so
-its tests construct graphs directly. As of Phase 2: **74 unit tests**.
+its tests construct graphs directly. The RAG layer tests against the *real*
+local embedder and an in-memory ChromaDB (both free and offline), and injects a
+fake LLM into the generator so the validate-and-repair loop is exercised with no
+provider call. As of Phase 3: **90 unit tests**.
 
 > **🚧 To be filled in:** integration-test strategy once a live provider path
 > and the end-to-end conversation loop exist (Phase 6).

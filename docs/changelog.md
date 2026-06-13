@@ -7,6 +7,15 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
+### 2026-06-14 — Phase 3: RAG Pipeline complete (90 unit tests total, +16)
+- `src/rag/corpus/` — 15 synthetic clinical cases across 5 presentations (chest pain ×4, dyspnea ×3, abdominal pain ×3, headache ×3, leg swelling ×2); varied underlying cause, age, severity, emotional context; whole-case documents, filename encodes category
+- `src/rag/embedder.py` — `Embedder`, the text→vector seam over local ONNX `all-MiniLM-L6-v2` (free, offline, deterministic, 384-dim); model choice owned in one place
+- `src/rag/retriever.py` — `Retriever` over ChromaDB: `ingest_corpus` (idempotent, strips provenance header, parses category from filename) and `query` (dense semantic search + category metadata pre-filter); collection injected for ephemeral/persistent split
+- `src/rag/generator.py` — `ScenarioGenerator`: retrieve top-3 → synthesise a new patient → validate-and-repair against `scenarios/schema.py`; LLM injected (no real calls in tests); output guaranteed to build via `state/builder.py`
+- Tooling: added `chromadb` (brings the ONNX MiniLM; no PyTorch)
+- ADRs 020–022 added (local ONNX embedder seam, whole-case semantic+metadata retrieval, synthesise + validate-and-repair generation)
+- `docs/architecture.md` §6 RAG filled in; persistence + testing-strategy sections updated
+
 ### 2026-06-13 — Phase 2: Patient State Graph complete (74 unit tests total, +27)
 - `scenarios/schema.py` — scenario validation contract: strict core node fields + open `metadata` bag, `relation` as str-or-list, unique-id and dangling-edge checks, `load_scenario`
 - `scenarios/chest_pain.json` — first authored patient: 16 nodes across all categories, hidden cocaine-use precipitant, objective vitals carried in metadata

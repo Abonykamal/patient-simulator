@@ -17,6 +17,7 @@ dependencies = [
     # Phase 2: in-memory patient state graph (nodes = clinical facts, edges =
     # clinical associations). Library mode, no server.
     "networkx>=3.0",
+    "chromadb>=0.5",
 ]
 
 [dependency-groups]
