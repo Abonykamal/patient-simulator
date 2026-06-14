@@ -58,3 +58,4 @@ async def test_persona_encodes_the_approved_guardrails() -> None:
     assert "NOT know your diagnosis" in prompt  # no diagnosis leakage (#6)
     assert "nurse or doctor would need to check" in prompt  # defer vitals (#7)
     assert "only_if_trust_built" in prompt  # disclosure hierarchy + trust rubric
+    assert "Do not accept assumptions built into a question" in prompt  # leading-question guard

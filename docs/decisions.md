@@ -506,5 +506,72 @@ Reformatting one case (Option A) would make every cardiac session essentially th
 
 ---
 
+## ADR-023: Agent Base — Template-Method Pipeline, Prompt-Enforced Disclosure, Injected Context
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The patient, nurse, and family agents all do the same four things: assemble a prompt, call the LLM, parse the reply into the structured `AgentResponse` (ADR-010), and return it. They differ only in persona and which slice of the patient's truth they see. We had to decide how much machinery to share, how the patient honours `disclosure_difficulty` (ADR-017), and where conversation context comes from while the memory layer (Phase 5) does not yet exist.
+
+**Options considered:**
+- A) Three standalone agents, each with its own call/parse logic
+- B) A thin base with shared helpers, personas mostly independent
+- C) A template-method `BaseAgent` owning the whole pipeline, with persona as the only required hook
+- Disclosure: prompt-only vs a code "trust counter" gate
+- Context: injected as a parameter vs agents reading history/DB themselves
+
+**Decision:** Template-method `BaseAgent` (Option C); disclosure is **prompt-only**; context is an **injected parameter**.
+
+**Reasoning:**
+The agents share their entire control flow, so a template method puts the fragile JSON parse/validate/repair loop (reused from the Phase 3 generator) in exactly one place; each persona becomes a short declaration. Disclosure stays prompt-only because reveal control already lives with the agent via structured output (ADR-010/ADR-018); a second code gate would be a conflicting source of truth and make the patient feel robotic. Context is injected so agents stay pure functions and the memory layer (Phase 5) drops in later with zero agent changes — mirroring how `complete_fn` is injected into the generator. The LLM call is injected too, so every agent test runs with a fake and no real provider call.
+
+**Consequences:**
+`src/agents/base.py` exposes `BaseAgent.respond(message, context) -> AgentResponse` and an `AgentResponse` model (`response_text`, `revealed_nodes`, `emotional_state`). Agents never write to the graph — they *report* `revealed_nodes` and the caller applies `mark_revealed` (whose guard drops hallucinated ids). Each persona prompt also forbids accepting false premises in a leading question, a clinical-skills *validity* fix applied to all three agents. Pairs with ADR-010, ADR-017, ADR-018.
+
+---
+
+## ADR-024: Per-Agent Knowledge Slicing
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+All three agents read the same `PatientStateGraph`, but a realistic encounter requires each to know different things. If every agent sees everything, the nurse could recite the patient's secret shame and the family could read off lab values — destroying both realism and the reason multiple agents exist.
+
+**Options considered:**
+- A) All agents see the full graph; persona prompt alone keeps them in lane
+- B) Each agent gets a filtered slice of the graph matching what that character would know
+
+**Decision:** Per-agent knowledge slice (Option B).
+
+**Reasoning:**
+A filter enforces the boundary structurally, not just by hope. The patient sees everything (including its own secrets, so it can guard them). The nurse sees only *documented* facts — vitals/exam in `metadata`, current medications, documented history and observations — and explicitly **not** hidden or undisclosed personal facts. The family sees the social/emotional/family-history layer plus observed behaviour, and explicitly **excludes `hidden` nodes**, so a relative never leaks the patient's secrets. The three lanes (patient guards & is vague; nurse is precise & defers personal to the patient; family volunteers the lived layer & defers clinical to staff) push the student to the right source for each kind of question.
+
+**Consequences:**
+The context the caller assembles per agent (Phase 5) is the enforcement point; the personas describe the boundary in words as a second layer. The "collateral history exposes what the patient conceals" dynamic (a relative revealing a guarded fact) is deliberately deferred — it needs a schema flag (e.g. `metadata.known_to_family`) and is a Phase 8 item with its own ADR. Pairs with ADR-023.
+
+---
+
+## ADR-025: Router — Explicit Addressing, Default-to-Patient, Resolve-Only, Injected Classifier
+**Date:** June 2026
+**Status:** Accepted (refines ADR-009)
+
+**Context:**
+ADR-009 settled the routing *strategy* (explicit addressing, LLM only for ambiguous messages). Implementing it raised concrete questions: when exactly does the LLM classifier fire, does the router dispatch or just decide, and how is a classifier reply parsed safely.
+
+**Options considered:**
+- When to classify: every unaddressed message vs only when explicitly asked
+- Router shape: a `BaseAgent` subclass vs a plain resolve-only class vs a dispatching class
+- Classifier output: free text vs a strict single word
+
+**Decision:** Explicit target wins; an unaddressed message **defaults to the patient**; the classifier fires **only on an explicit `AUTO` request**. The router is a **resolve-only** plain class. The classifier returns **one word**, parsed defensively.
+
+**Reasoning:**
+Classifying every unaddressed turn would reintroduce the per-turn LLM cost ADR-009 exists to avoid; since the UI dropdown defaults to the patient, "unaddressed" almost always means "still talking to the patient," so defaulting there keeps the common path at zero LLM calls. The router can't be a `BaseAgent` subclass — the classifier yields a *label*, not an `AgentResponse` — and resolve-only keeps it single-responsibility and testable without constructing real agents. The classifier prompt names the about-vs-to trap ("Did the nurse check his BP?" is asked *of the patient*) and defaults ambiguity to the patient; the reply is lowercased, stripped to words, matched against the three targets (non-default first), and falls back to the patient on anything unrecognised, so a chatty model can't break routing.
+
+**Consequences:**
+`src/agents/router.py` exposes `Router(patient, nurse, family, complete_fn).resolve(message, addressed_to) -> BaseAgent` and an `AUTO` sentinel. A `router` entry was added to `AGENT_CONFIG` (Gemini `gemini-2.5-flash-lite`, the cheapest fast model, rarely called). Prefix-keyword parsing ("Nurse, …") is intentionally omitted for now — a substring match is too fragile — leaving the explicit UI signal as the source of truth. Pairs with ADR-009.
+
+---
+
 *New decisions will be added here as the project is built.*
 *Each entry should take ~5 minutes to write. Date it, describe the context, log the options you considered, and record why you chose what you chose.*

@@ -30,13 +30,14 @@ class TestAgentLLMConfig:
 
 
 class TestAgentConfigRegistry:
-    def test_contains_exactly_the_five_agents(self):
+    def test_contains_exactly_the_expected_agents(self):
         from src.core.config import AGENT_CONFIG
 
         assert set(AGENT_CONFIG) == {
             "patient",
             "nurse",
             "family",
+            "router",
             "judge",
             "scenario_generator",
         }

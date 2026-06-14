@@ -43,6 +43,9 @@ AGENT_CONFIG: dict[str, AgentLLMConfig] = {
     ),
     "nurse": AgentLLMConfig(provider="gemini", model="gemini-2.5-flash-lite", fallback=GROQ_LLAMA),
     "family": AgentLLMConfig(provider="gemini", model="gemini-2.5-flash-lite", fallback=GROQ_LLAMA),
+    # Router only classifies an ambiguous message into one word — a trivial task,
+    # so the cheapest fast model. Rarely called (explicit addressing is free).
+    "router": AgentLLMConfig(provider="gemini", model="gemini-2.5-flash-lite", fallback=GROQ_LLAMA),
     # No fallback for the judge: a silently degraded judge produces
     # misleading evaluation scores — better to fail loudly and re-run.
     "judge": GROQ_LLAMA,

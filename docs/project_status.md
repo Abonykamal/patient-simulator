@@ -1,7 +1,7 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 3 (RAG Pipeline) complete — 90 unit tests passing
+**Phase:** Phase 4 (Agents) complete — 104 unit tests passing
 **Last updated:** 14-June-2026
 
 ---
@@ -42,11 +42,12 @@
 - [x] `src/rag/generator.py` — `ScenarioGenerator`: retrieve top-3 → synthesise → validate-and-repair against `scenarios/schema.py` (≤`max_repairs`); LLM injected, no real calls in tests; output builds via `state/builder.py` (ADR-022; 7 unit tests)
 
 ### Phase 4: Agents (Day 3)
-- [ ] `src/agents/base.py` — base agent class
-- [ ] `src/agents/patient.py` — patient agent
-- [ ] `src/agents/nurse.py` — nurse agent
-- [ ] `src/agents/family.py` — family member agent
-- [ ] `src/agents/router.py` — agent router
+- [x] `src/agents/base.py` — `BaseAgent` template-method pipeline + `AgentResponse` (LLM injected, validate-and-repair; prompt-enforced disclosure, ADR-023; 4 unit tests)
+- [x] `src/agents/patient.py` — `PatientAgent`: approved persona, disclosure hierarchy + trust rubric, no diagnosis leakage, defers vitals (ADR-024; 2 unit tests)
+- [x] `src/agents/nurse.py` — `NurseAgent`: documented-facts-only, no clinical reasoning, defers personal history to patient (ADR-024; 2 unit tests)
+- [x] `src/agents/family.py` — `FamilyAgent`: first-person collateral, observation-not-inference, slice excludes hidden nodes (ADR-024; 2 unit tests)
+- [x] `src/agents/router.py` — `Router`: resolve-only, explicit addressing → default-to-patient → `AUTO` classifier; defensive parse; `router` added to AGENT_CONFIG (ADR-009/ADR-025; 4 unit tests)
+- All personas refuse false premises in leading questions (clinical-skills validity guard)
 
 ### Phase 5: Memory & Context (Day 3-4)
 - [ ] `src/memory/manager.py` — episodic memory manager
@@ -76,7 +77,9 @@
 ---
 
 ## What's Next
-Phase 3 done. Begin Phase 4: Agents — `src/agents/base.py`, `src/agents/patient.py`, `src/agents/nurse.py`, `src/agents/family.py`, `src/agents/router.py`. Agents call `llm.client.complete` (never raw SDKs), return structured JSON `{response_text, revealed_nodes, emotional_state}` (ADR-010), and read the `PatientStateGraph` (summary for context, `mark_revealed` after each turn). The patient agent honours each node's `disclosure_difficulty` (ADR-017). The router uses explicit UI addressing with LLM classification only for ambiguous messages (ADR-009).
+Phase 4 done. Begin Phase 5: Memory & Context — `src/memory/manager.py`, `src/memory/context_builder.py`, `src/memory/summarizer.py`. This layer builds the per-turn context the agents already accept as an injected parameter (ADR-023): last N turns + the `PatientStateGraph` slice each agent is allowed to see (ADR-024) + persona framing, with older turns summarised to stay within budget. It is the enforcement point for per-agent knowledge slicing and the source of the conversation history the patient needs to apply its trust rubric.
+
+Note: the agents are unit-tested with an injected fake LLM, so **no real agent→provider call has happened yet**. The first live agent call (and a useful smoke test) comes when an agent runs against a real context built from a graph — worth doing early in Phase 5 once `context_builder` exists. Phase 3's `scripts/smoke_generator.py` already proved the live generator path.
 
 Note: the LLM providers' live network path **is now exercised** by `scripts/smoke_generator.py` — a manual smoke test (excluded from the pytest suite) that runs the real chain end-to-end: corpus → embed → ChromaDB retrieve → `scenario_generator` LLM → schema-validate → build graph. It confirmed the `gemini-3.1-flash-lite` model works against live credentials. Automated tests still make **no** real provider calls (the generator is unit-tested with an injected fake LLM); the smoke script is the deliberate, hand-run exception.
 
@@ -89,8 +92,10 @@ Decisions locked in (reflected in project_spec.md / decisions.md):
 - State graph: undirected NetworkX, edges = clinical associations not reveal gates; relation as edge attribute (str or list), no MultiGraph (ADR-018)
 - Scenario nodes: strict core fields + open `metadata` bag; core logic never branches on metadata (ADR-017)
 - Graph serialization: NetworkX node-link format behind the serializer seam (ADR-019)
-- Router: explicit UI addressing; LLM classification only for ambiguous messages
-- Agents always return structured JSON: response_text, revealed_nodes, emotional_state
+- Agent base: template-method `BaseAgent`, prompt-enforced disclosure (no code gate), context injected as a parameter; LLM injected for tests (ADR-023)
+- Per-agent knowledge slicing: patient sees all, nurse documented-only, family social/emotional/family-history excluding hidden nodes (ADR-024)
+- Router: resolve-only, explicit addressing → default-to-patient → `AUTO` one-word classifier (zero LLM cost on the common path), defensive parse (ADR-009/ADR-025)
+- Agents always return structured JSON: response_text, revealed_nodes, emotional_state (ADR-010); all personas refuse leading-question false premises
 - Rubric is process-based (asking counts regardless of patient's actual history)
 - Per-agent optional fallback in AGENT_CONFIG; 429 → fallback after backoff, 5xx → immediately; judge has no fallback (fail loudly)
 

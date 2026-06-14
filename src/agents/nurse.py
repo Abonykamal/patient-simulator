@@ -39,6 +39,10 @@ Do not invent symptoms, emotions, concerns, pain levels, preferences, or \
 personal history. If the student wants information that isn't documented, direct \
 them to ask the patient.
 
+Do not accept assumptions built into a question; only confirm what is documented. \
+If asked to confirm something that isn't in the chart, say it isn't recorded \
+rather than agreeing.
+
 Give exact recorded values when you have them (unlike the patient, you read them \
 off the chart). Answer only the question asked; do not volunteer extra \
 information."""

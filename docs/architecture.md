@@ -54,7 +54,7 @@ subpackage is one layer:
 | State | `src/state/` | In-memory NetworkX patient graph: build, query, serialize | ✅ Phase 2 |
 | Scenarios | `scenarios/` | Scenario schema + authored patient JSON files | ✅ Phase 2 |
 | RAG | `src/rag/` | Embedding, retrieval, scenario generation; ChromaDB | ✅ Phase 3 |
-| Agents | `src/agents/` | Patient / nurse / family agents + router | 🚧 Phase 4 |
+| Agents | `src/agents/` | Patient / nurse / family agents + router | ✅ Phase 4 |
 | Memory | `src/memory/` | Episodic memory, context-window construction | 🚧 Phase 5 |
 | API | `src/api/` | FastAPI routes (thin) | 🚧 Phase 6 |
 | Frontend | `frontend/` | Streamlit UI (HTTP only) | 🚧 Phase 6 |
@@ -147,11 +147,42 @@ patients on demand. The chain is bottom-up: embed → retrieve → generate.
   whole loop with no real provider call. Output is guaranteed to build via
   `state/builder.py`.
 
-## 7. Agents Layer — 🚧 To be filled in (Phase 4)
+## 7. Agents Layer (✅ Phase 4)
 
-_Patient / nurse / family agents and the router (explicit UI addressing with LLM
-fallback, ADR-009). All agents return structured JSON `{response_text,
-revealed_nodes, emotional_state}` (ADR-010)._
+Turns the patient's state (data) into characters that talk. Three personas plus a
+router; the personas share one pipeline and differ only in voice and what they
+know.
+
+- **`base.py`** — `BaseAgent`, a template-method pipeline every persona reuses:
+  assemble prompt → `llm.client.complete` → parse/validate/**repair** into an
+  `AgentResponse` (`response_text`, `revealed_nodes`, `emotional_state`; ADR-010).
+  Subclasses override only `_persona()`. The repair loop and injected `complete_fn`
+  are reused from the Phase 3 generator, so the codebase coaxes JSON from LLMs one
+  consistent way. Agents never write to the graph — they *report* `revealed_nodes`
+  and the caller applies `mark_revealed` (ADR-023).
+- **`patient.py`** — `PatientAgent`. Plays the specific patient; constructed with
+  `patient_name`, the mutable truth injected per turn as context. Disclosure is
+  prompt-enforced via the `volunteered → if_asked → only_if_asked_directly →
+  only_if_trust_built` hierarchy plus a trust rubric (no code gate, ADR-023). Its
+  guardrails keep it believable: plain language, answer only what's asked, memory
+  vagueness, no diagnosis leakage, defers vitals/exam to staff, 1–3 sentences.
+- **`nurse.py`** — `NurseAgent`. The patient's mirror: *precise* (reads numbers
+  off the chart) and *defers personal history to the patient*. Reports only
+  documented facts; never diagnoses, interprets, or reasons clinically.
+- **`family.py`** — `FamilyAgent`. A worried relative giving collateral history;
+  first-person, reports observation not inference, no invented family history,
+  defers clinical detail to staff. Its slice excludes `hidden` nodes so it never
+  leaks secrets (ADR-024).
+- **`router.py`** — `Router`. Resolve-only: explicit addressing wins, an
+  unaddressed message defaults to the patient, and a one-word LLM classifier fires
+  only on an explicit `AUTO` request — keeping the common path at zero LLM calls
+  (ADR-009/ADR-025). Classifier replies are parsed defensively (fall back to
+  patient).
+
+Per-agent knowledge slicing (who sees what) is enforced by the context the caller
+assembles (Phase 5) and described again in each persona (ADR-024). All persona
+prompts also refuse false premises in leading questions — a clinical-skills
+validity guard.
 
 ## 8. Memory Layer — 🚧 To be filled in (Phase 5)
 
@@ -217,7 +248,9 @@ and the DB uses in-memory SQLite with `StaticPool`. The state layer is pure, so
 its tests construct graphs directly. The RAG layer tests against the *real*
 local embedder and an in-memory ChromaDB (both free and offline), and injects a
 fake LLM into the generator so the validate-and-repair loop is exercised with no
-provider call. As of Phase 3: **90 unit tests**.
+provider call. The agents layer injects a fake `complete_fn` into each agent and
+the router, so personas, the repair loop, and routing are all tested without a
+real call. As of Phase 4: **104 unit tests**.
 
 > **🚧 To be filled in:** integration-test strategy once a live provider path
 > and the end-to-end conversation loop exist (Phase 6).

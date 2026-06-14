@@ -7,6 +7,17 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
+### 2026-06-14 — Phase 4: Agents complete (104 unit tests total, +14)
+- `src/agents/base.py` — `BaseAgent` template-method pipeline (assemble → `complete` → parse/validate/repair) + `AgentResponse` model (`response_text`, `revealed_nodes`, `emotional_state`); LLM injected, validate-and-repair reused from the generator
+- `src/agents/patient.py` — `PatientAgent`: approved persona with prompt-enforced disclosure hierarchy + trust rubric, plain language, no diagnosis leakage, defers vitals to staff, memory vagueness, pacing
+- `src/agents/nurse.py` — `NurseAgent`: documented-facts-only, no clinical reasoning/diagnosis, precise values, defers personal history to the patient
+- `src/agents/family.py` — `FamilyAgent`: first-person collateral history, observation-not-inference, no invented family history, slice excludes hidden nodes
+- All personas refuse false premises in leading questions (clinical-skills validity guard)
+- `src/agents/router.py` — `Router`: resolve-only, explicit addressing wins, unaddressed defaults to patient, one-word LLM classifier only on `AUTO` (zero LLM cost on the common path), defensive parse
+- `src/core/config.py` — added `router` to `AGENT_CONFIG` (Gemini `gemini-2.5-flash-lite`)
+- ADRs 023–025 added (agent base/template-method + injected context, per-agent knowledge slicing, router implementation)
+- `docs/architecture.md` §7 Agents filled in; testing-strategy count updated
+
 ### 2026-06-14 — Phase 3: RAG Pipeline complete (90 unit tests total, +16)
 - `src/rag/corpus/` — 15 synthetic clinical cases across 5 presentations (chest pain ×4, dyspnea ×3, abdominal pain ×3, headache ×3, leg swelling ×2); varied underlying cause, age, severity, emotional context; whole-case documents, filename encodes category
 - `src/rag/embedder.py` — `Embedder`, the text→vector seam over local ONNX `all-MiniLM-L6-v2` (free, offline, deterministic, 384-dim); model choice owned in one place

@@ -55,3 +55,4 @@ async def test_persona_encodes_the_approved_guardrails() -> None:
     assert "You'd need to ask the doctor" in prompt  # no diagnosis
     assert "direct them to ask the patient" in prompt  # defer personal history
     assert "Answer only the question asked" in prompt  # no chart-dumping
+    assert "Do not accept assumptions built into a question" in prompt  # leading-question guard
