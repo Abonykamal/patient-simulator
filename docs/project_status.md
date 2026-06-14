@@ -78,7 +78,7 @@
 ## What's Next
 Phase 3 done. Begin Phase 4: Agents — `src/agents/base.py`, `src/agents/patient.py`, `src/agents/nurse.py`, `src/agents/family.py`, `src/agents/router.py`. Agents call `llm.client.complete` (never raw SDKs), return structured JSON `{response_text, revealed_nodes, emotional_state}` (ADR-010), and read the `PatientStateGraph` (summary for context, `mark_revealed` after each turn). The patient agent honours each node's `disclosure_difficulty` (ADR-017). The router uses explicit UI addressing with LLM classification only for ambiguous messages (ADR-009).
 
-Note: the LLM providers' live network path is **still not exercised** (no credentials/integration test). Phase 3's generator is unit-tested with an injected fake LLM, so no real Gemini/Groq call has yet happened. The first real provider call occurs when the generator or an agent runs against live credentials — worth a single smoke test early in Phase 4.//this note is deprecated,check smoke_generator.py
+Note: the LLM providers' live network path **is now exercised** by `scripts/smoke_generator.py` — a manual smoke test (excluded from the pytest suite) that runs the real chain end-to-end: corpus → embed → ChromaDB retrieve → `scenario_generator` LLM → schema-validate → build graph. It confirmed the `gemini-3.1-flash-lite` model works against live credentials. Automated tests still make **no** real provider calls (the generator is unit-tested with an injected fake LLM); the smoke script is the deliberate, hand-run exception.
 
 Embedding model note: the ONNX `all-MiniLM-L6-v2` (~80 MB) downloads once on first embed to `~/.cache/chroma`, then runs offline. ChromaDB's persistent store lives at `chroma_data/` (gitignored).
 
