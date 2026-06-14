@@ -136,27 +136,67 @@ def _format_cases(cases: list[RetrievedCase]) -> str:
 
 # Describes the output contract in prose. The hard contract is scenarios.schema;
 # this just steers the model toward it so the first attempt usually validates.
+# The patient is interviewed by three characters (patient, nurse, family member),
+# so the brief deliberately tells the model to seed facts each of them would know.
 _SCHEMA_BRIEF = """\
 Return ONLY a JSON object (no prose, no markdown) with these fields:
 - scenario_id: short snake_case string
 - scenario_name: short human title
 - patient_name: a plausible full name
 - scenario_intro: one or two sentences a student sees before the interview
-- nodes: a list of clinical facts. Each node has:
+- nodes: a list of clinical facts (aim for 14 to 16, never fewer than 12; see
+  requirements below). Each node has:
     - id: snake_case unique string
     - label: short speakable text (e.g. "crushing chest pain")
-    - category: one of "symptom", "history", "hidden", "emotional", "social",
-      "medication", "family_history"
-    - importance (optional): "critical" | "relevant" | "minor"
-    - detail (optional): a longer sentence the patient can give if pressed
-    - disclosure_difficulty (optional): "volunteered" | "if_asked" |
-      "only_if_asked_directly" | "only_if_trust_built"
-    - metadata (optional): an object for extras (e.g. {"systolic": 162})
+    - category: one of:
+        "symptom"        = the presenting complaint and associated symptoms
+        "history"        = past medical history — chronic conditions, prior
+                           episodes, past surgery, allergies
+        "medication"     = current medications (and adherence)
+        "family_history" = relevant conditions in blood relatives
+        "social"         = smoking, alcohol, drugs, occupation, living situation
+        "emotional"      = the patient's feelings/worries about what's happening
+        "hidden"         = a fact the patient guards and the student must uncover
+    - importance: REQUIRED on every node — "critical" | "relevant" | "minor".
+      Choose it deliberately: "critical" for facts that change the diagnosis or
+      are dangerous to miss, "relevant" for useful supporting facts, "minor" for
+      incidental colour. Never omit this field.
+    - detail (optional): a longer sentence the patient, nurse, or family member
+      can give when pressed for more
+    - disclosure_difficulty (optional): how readily the patient gives this fact
+      up — one of:
+        "volunteered"           = offered unprompted, early
+        "if_asked"              = given on any roughly related question
+        "only_if_asked_directly"= given only on a specific, pointed question
+        "only_if_trust_built"   = given only after the student builds rapport
+      Spread facts across these levels. Routine facts can be "volunteered" or
+      "if_asked"; sensitive or embarrassing ones (substance use, non-adherence,
+      mental-health, risky behaviour, anything a real patient would guard) must
+      be "only_if_asked_directly" or "only_if_trust_built" so the student has to
+      earn them.
+    - metadata (optional): a JSON object for OBJECTIVE, structured clinical data
+      that staff already have on record — vital signs the nurse has measured,
+      physical-exam findings, point-of-care results, observed behaviour on the
+      ward. Example: {"bp": "162/94", "hr": 98, "spo2": 95, "temp_c": 37.1}.
+      Put anything a nurse would read off a chart here so the nurse character has
+      concrete numbers to report. Also fine for other per-case extras.
 - edges: a list of associations between nodes. Each edge has source, target
   (both must be node ids that exist in nodes), and an optional relation label.
+  Every edge endpoint MUST be an existing node id.
 
-Include 8-16 nodes spanning several categories, with at least one "hidden" node
-the student must work to uncover. Every edge endpoint MUST be an existing node id.
+Content requirements for the nodes:
+- Aim for 14 to 16 nodes (never fewer than 12) spanning several different
+  categories.
+- Include the patient's PAST MEDICAL HISTORY: relevant chronic conditions, prior
+  episodes, past surgery, and allergies ("history"), current medications and
+  whether they take them ("medication"), and relevant "family_history". This is
+  core history-taking material the student is expected to ask for.
+- Include AT LEAST TWO "hidden" nodes the student must actively work to uncover.
+- Attach OBJECTIVE data (vital signs, exam findings) in `metadata` on at least
+  one node, so the NURSE character has real numbers to give when asked.
+- Include social and emotional nodes capturing collateral context a FAMILY
+  MEMBER at the bedside would know — recent stressors, the home situation, how
+  the patient has really been coping.
 """
 
 

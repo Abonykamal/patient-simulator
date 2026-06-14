@@ -39,6 +39,10 @@ def _print_scenario(scenario: Scenario) -> None:
     for node in scenario.nodes:
         diff = f", {node.disclosure_difficulty}" if node.disclosure_difficulty else ""
         print(f"    - [{node.category}] {node.label} ({node.importance}{diff})")
+        # Surface the metadata bag — this is where objective, nurse-readable data
+        # (vitals, exam findings) is supposed to land, so we want to see it.
+        if node.metadata:
+            print(f"        metadata: {node.metadata}")
     print(f"  edges       : {len(scenario.edges)}")
 
 
