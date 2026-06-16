@@ -68,6 +68,10 @@ class ConversationTurn(Base):
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
     revealed_nodes_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Patient rapport after this turn (patient turns only; null elsewhere) — ADR-027.
+    trust_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Which agent a student turn was directed at, for per-agent threading — ADR-026.
+    addressed_to: Mapped[str | None] = mapped_column(String, nullable=True)
 
     session: Mapped[SimulationSession] = relationship(back_populates="turns")
 

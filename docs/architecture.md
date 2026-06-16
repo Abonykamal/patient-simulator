@@ -55,7 +55,7 @@ subpackage is one layer:
 | Scenarios | `scenarios/` | Scenario schema + authored patient JSON files | ✅ Phase 2 |
 | RAG | `src/rag/` | Embedding, retrieval, scenario generation; ChromaDB | ✅ Phase 3 |
 | Agents | `src/agents/` | Patient / nurse / family agents + router | ✅ Phase 4 |
-| Memory | `src/memory/` | Episodic memory, context-window construction | 🚧 Phase 5 |
+| Memory | `src/memory/` | Per-agent context assembly: slice + rapport + recent turns; trust clamp | ✅ Phase 5 |
 | API | `src/api/` | FastAPI routes (thin) | 🚧 Phase 6 |
 | Frontend | `frontend/` | Streamlit UI (HTTP only) | 🚧 Phase 6 |
 | Evaluation | `src/evaluation/` | LLM-as-judge rubric scoring + report | 🚧 Phase 7 |
@@ -184,10 +184,32 @@ assembles (Phase 5) and described again in each persona (ADR-024). All persona
 prompts also refuse false premises in leading questions — a clinical-skills
 validity guard.
 
-## 8. Memory Layer — 🚧 To be filled in (Phase 5)
+## 8. Memory Layer (✅ Phase 5)
 
-_Episodic memory and context-window construction: last N turns + state-graph
-summary + persona/constraints + what has/hasn't been revealed._
+Pure, I/O-free assembly of each agent's per-turn `context` string. It is handed
+typed objects (the `PatientStateGraph`, a list of `HistoryTurn`s, the current
+`trust_level`) and returns a string — it never opens a DB session or calls an LLM
+(ADR-026). The Phase 6 orchestrator owns those boundaries.
+
+- `context_builder.py` — the pure renderer. Owns the per-agent **slice policy**
+  (`agent → visible categories`, the literal encoding of ADR-024/ADR-028) applied
+  over the graph's generic `facts()` **mechanism**, and the labelled layout
+  (design D6): state slice → patient-only rapport line → recent turns, with the
+  agent's own turns labelled "you". Nurse/family never see `hidden`; the nurse's
+  objective `metadata` (vitals) is surfaced. Defines `HistoryTurn`, a
+  framework-free turn type so the layer never imports `db.models`.
+- `manager.py` — the public API the orchestrator calls. Filters all turns to the
+  agent's **own thread** (per-agent threading, D2 — so one agent's spoken
+  disclosures never leak into another's context), windows it to the last
+  `RECENT_EXCHANGES_N` exchanges (D6), and delegates rendering. Hosts
+  `apply_rapport_delta`, the persisted-trust clamp (ADR-027).
+- `summarizer.py` — deferred stub (design D5): the graph's `[revealed]` flags and
+  the persisted `trust_level` already capture what a prose recap would, so none is
+  injected for the MVP.
+
+Trust (C2, ADR-027): a persisted `trust_level` (0–3, baseline 1) is nudged by a
+bounded `rapport_delta` the patient emits in its own JSON; `only_if_trust_built`
+facts unlock at level 3. Persisted per patient turn for the Phase 7 trajectory.
 
 ## 9. API & Frontend — 🚧 To be filled in (Phase 6)
 
@@ -212,7 +234,7 @@ scenario type → RAG retrieve + generate patient JSON → schema validate
 ### Conversation turn
 ```
 student message (optionally addressed) → router resolves speaker
-   → memory builds context (last N turns + graph.summary() + persona)
+   → memory builds context (per-agent slice + rapport + last N turns; persona added by the agent)
    → llm.complete(agent, prompt) → agent returns {response_text, revealed_nodes, emotional_state}
    → graph.mark_revealed(revealed_nodes) → turn saved to SQLite → response shown
 ```
@@ -250,7 +272,7 @@ local embedder and an in-memory ChromaDB (both free and offline), and injects a
 fake LLM into the generator so the validate-and-repair loop is exercised with no
 provider call. The agents layer injects a fake `complete_fn` into each agent and
 the router, so personas, the repair loop, and routing are all tested without a
-real call. As of Phase 4: **104 unit tests**.
+real call. As of Phase 5: **124 unit tests**.
 
 > **🚧 To be filled in:** integration-test strategy once a live provider path
 > and the end-to-end conversation loop exist (Phase 6).

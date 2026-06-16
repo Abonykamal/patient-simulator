@@ -59,3 +59,17 @@ async def test_persona_encodes_the_approved_guardrails() -> None:
     assert "nurse or doctor would need to check" in prompt  # defer vitals (#7)
     assert "only_if_trust_built" in prompt  # disclosure hierarchy + trust rubric
     assert "Do not accept assumptions built into a question" in prompt  # leading-question guard
+
+
+def test_persona_encodes_the_rapport_mechanism() -> None:
+    # The two Phase-5 additions: honour the injected rapport level, emit a delta.
+    agent = PatientAgent("Jane", complete_fn=_FakeLLM([]))
+    persona = agent._persona()
+    assert "CURRENT RAPPORT" in persona
+    assert "only_if_trust_built facts as locked" in persona
+    assert "rapport_delta" in persona
+
+
+def test_patient_json_fields_requests_rapport_delta() -> None:
+    agent = PatientAgent("Jane", complete_fn=_FakeLLM([]))
+    assert "rapport_delta" in agent._json_fields()

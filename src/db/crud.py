@@ -59,6 +59,8 @@ async def add_turn(
     speaker: str,
     content: str,
     revealed_nodes: list | None = None,
+    trust_level: int | None = None,
+    addressed_to: str | None = None,
 ) -> ConversationTurn:
     """Append a conversation turn, auto-assigning the next sequential turn number.
 
@@ -68,6 +70,8 @@ async def add_turn(
         speaker: One of student | patient | nurse | family.
         content: The message text.
         revealed_nodes: State-graph node ids revealed by this turn, if any.
+        trust_level: Patient rapport after this turn (patient turns only) — ADR-027.
+        addressed_to: Which agent a student turn was directed at — ADR-026.
 
     Returns:
         The persisted ``ConversationTurn``.
@@ -83,6 +87,8 @@ async def add_turn(
         speaker=speaker,
         content=content,
         revealed_nodes_json=revealed_nodes or [],
+        trust_level=trust_level,
+        addressed_to=addressed_to,
     )
     db.add(turn)
     await db.flush()

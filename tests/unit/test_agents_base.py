@@ -93,3 +93,22 @@ async def test_prompt_carries_persona_context_and_message() -> None:
     assert "You are a patient being interviewed." in sent_prompt  # persona
     assert "REVEALED: chest_pain" in sent_prompt  # injected context
     assert "Does it radiate?" in sent_prompt  # the student's message
+
+
+def test_agent_response_defaults_rapport_delta_to_zero() -> None:
+    resp = AgentResponse(response_text="hi", emotional_state="calm")
+    assert resp.rapport_delta == 0
+
+
+def test_agent_response_accepts_rapport_delta() -> None:
+    resp = AgentResponse(response_text="hi", emotional_state="calm", rapport_delta=-1)
+    assert resp.rapport_delta == -1
+
+
+def test_base_json_fields_excludes_rapport_delta() -> None:
+    # The shared default stays the original 3-field shape so nurse/family/router
+    # prompts are unchanged; only the patient overrides this (Task 5).
+    agent = _StubAgent(complete_fn=_FakeLLM([]))
+    fields = agent._json_fields()
+    assert "response_text" in fields
+    assert "rapport_delta" not in fields

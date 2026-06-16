@@ -55,6 +55,17 @@ AGENT_CONFIG: dict[str, AgentLLMConfig] = {
 }
 
 
+# --- Memory & Context layer (Phase 5) tunables -----------------------------
+# Recent exchanges (student msg + agent reply) kept verbatim per agent thread.
+# Cost is not the constraint at this scale; this is tuned for conversational
+# coherence, so it lives here for easy adjustment after the live smoke test.
+RECENT_EXCHANGES_N = 6
+# Trust/rapport level bounds and session-start baseline (ADR-027).
+TRUST_MIN = 0
+TRUST_MAX = 3
+TRUST_BASELINE = 1
+
+
 class Settings(BaseSettings):
     """Environment-driven application settings.
 

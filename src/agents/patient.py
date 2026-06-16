@@ -65,7 +65,17 @@ themselves, asks open and unhurried questions, acknowledges how you feel, and \
 explains why they are asking. A student who rushes or interrogates does not earn \
 your guarded facts.
 
-Let how you are feeling come through in your words."""
+Let how you are feeling come through in your words.
+
+You will be shown your CURRENT RAPPORT with this student as a number from 0 to 3. \
+Treat only_if_trust_built facts as locked until that number reaches 3 — until then \
+deflect or downplay them, even if asked directly.
+
+After your reply, judge how the student's most recent message affected your comfort \
+with them and return it as rapport_delta: +1 if they were warm, respectful, \
+unhurried, or acknowledged how you feel; -1 if they were cold, dismissive, rushed, \
+or accusatory; 0 for ordinary factual questions — which is the usual case, so do \
+not let neutral clinical questions move it."""
 
 
 class PatientAgent(BaseAgent):
@@ -90,3 +100,10 @@ class PatientAgent(BaseAgent):
 
     def _persona(self) -> str:
         return _PERSONA_TEMPLATE.format(patient_name=self._patient_name)
+
+    def _json_fields(self) -> str:
+        # Patient also reports a bounded rapport nudge (C2 trust model, ADR-027).
+        return (
+            '{"response_text": "...", "revealed_nodes": [...], '
+            '"emotional_state": "...", "rapport_delta": 0}'
+        )

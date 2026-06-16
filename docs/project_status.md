@@ -1,8 +1,8 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 4 (Agents) complete — 104 unit tests passing
-**Last updated:** 14-June-2026
+**Phase:** Phase 5 (Memory & Context) complete — 124 unit tests passing
+**Last updated:** 16-June-2026
 
 ---
 
@@ -50,9 +50,10 @@
 - All personas refuse false premises in leading questions (clinical-skills validity guard)
 
 ### Phase 5: Memory & Context (Day 3-4)
-- [ ] `src/memory/manager.py` — episodic memory manager
-- [ ] `src/memory/context_builder.py` — context window construction
-- [ ] `src/memory/summarizer.py` — conversation summarization
+- [x] `src/memory/context_builder.py` — pure per-agent context renderer: slice policy over `graph.facts()`, labelled blocks (slice → patient-only rapport line → recent turns), `HistoryTurn` type (ADR-024/026/028; 6 unit tests)
+- [x] `src/memory/manager.py` — public API: per-agent thread-filter + windowing + `apply_rapport_delta` clamp; pure/injected (ADR-026/027; 3 unit tests)
+- [x] `src/memory/summarizer.py` — deferred stub: structured stores cover the MVP (design D5; 1 guard test)
+- [x] Prereqs: `graph.facts()` accessor, `AgentResponse.rapport_delta` + `_json_fields`, patient persona rapport additions, `trust_level`/`addressed_to` columns, config tunables (+10 unit tests)
 
 ### Phase 6: Full Conversation Loop (Day 4)
 - [ ] `src/api/routes/sessions.py`
@@ -77,7 +78,7 @@
 ---
 
 ## What's Next
-Phase 4 done. Begin Phase 5: Memory & Context — `src/memory/manager.py`, `src/memory/context_builder.py`, `src/memory/summarizer.py`. This layer builds the per-turn context the agents already accept as an injected parameter (ADR-023): last N turns + the `PatientStateGraph` slice each agent is allowed to see (ADR-024) + persona framing, with older turns summarised to stay within budget. It is the enforcement point for per-agent knowledge slicing and the source of the conversation history the patient needs to apply its trust rubric.
+Phase 5 done. Begin Phase 6: Full Conversation Loop — the orchestrator (`src/api/`) that wires router → memory → agent per turn: resolve the agent, map `crud` turns to `HistoryTurn`s, `manager.build_context(...)`, `agent.respond(...)`, `graph.mark_revealed(...)`, `apply_rapport_delta` for the patient, then persist the student + agent turns (`addressed_to`, `trust_level`). This is where the **first live agent→provider call** happens — worth a manual smoke test once the loop exists, the way `scripts/smoke_generator.py` proved the generator path.
 
 Note: the agents are unit-tested with an injected fake LLM, so **no real agent→provider call has happened yet**. The first live agent call (and a useful smoke test) comes when an agent runs against a real context built from a graph — worth doing early in Phase 5 once `context_builder` exists. Phase 3's `scripts/smoke_generator.py` already proved the live generator path.
 
@@ -98,4 +99,8 @@ Decisions locked in (reflected in project_spec.md / decisions.md):
 - Agents always return structured JSON: response_text, revealed_nodes, emotional_state (ADR-010); all personas refuse leading-question false premises
 - Rubric is process-based (asking counts regardless of patient's actual history)
 - Per-agent optional fallback in AGENT_CONFIG; 429 → fallback after backoff, 5xx → immediately; judge has no fallback (fail loudly)
+- Memory & context: inputs injected as typed objects (graph, `HistoryTurn`s, `trust_level`) and rendered to a string; per-agent conversation threading; labelled context = slice → patient rapport line → last `RECENT_EXCHANGES_N` exchanges (ADR-026)
+- Trust model C2: persisted `trust_level` (0–3) nudged by a patient-emitted `rapport_delta` (−1/0/+1), `only_if_trust_built` unlocks at 3, persisted per patient turn (ADR-027)
+- Per-agent slice: policy in memory (`context_builder`), generic mechanism in graph (`facts()`) — graph stays agent-agnostic (ADR-028)
+- Conversation summarizer deferred: structured stores (graph reveals + `trust_level`) cover the MVP (design D5)
 

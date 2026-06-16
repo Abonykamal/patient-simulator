@@ -107,3 +107,18 @@ class TestSettings:
             assert get_settings() is get_settings()
         finally:
             get_settings.cache_clear()
+
+
+class TestMemoryTunables:
+    def test_memory_constants_have_expected_values(self):
+        from src.core.config import (
+            RECENT_EXCHANGES_N,
+            TRUST_BASELINE,
+            TRUST_MAX,
+            TRUST_MIN,
+        )
+
+        assert RECENT_EXCHANGES_N == 6
+        assert TRUST_MIN == 0
+        assert TRUST_BASELINE == 1
+        assert TRUST_MAX == 3

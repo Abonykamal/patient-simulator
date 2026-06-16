@@ -43,6 +43,7 @@ class AgentResponse(BaseModel):
     response_text: str
     revealed_nodes: list[str] = []
     emotional_state: str
+    rapport_delta: int = 0  # patient-only rapport nudge (-1/0/+1); others leave 0 (ADR-027)
 
 
 class BaseAgent:
@@ -70,6 +71,11 @@ class BaseAgent:
     def _persona(self) -> str:
         """Return the persona instructions for this agent. Overridden per agent."""
         raise NotImplementedError
+
+    def _json_fields(self) -> str:
+        """The JSON shape this agent must return. The patient overrides this to
+        request ``rapport_delta``; every other agent uses the 3-field default."""
+        return '{"response_text": "...", "revealed_nodes": [...], "emotional_state": "..."}'
 
     # --- pipeline --------------------------------------------------------------
 
@@ -110,7 +116,7 @@ class BaseAgent:
 
 The student says: {message}
 
-Reply ONLY with a JSON object: {{"response_text": "...", "revealed_nodes": [...], "emotional_state": "..."}}"""
+Reply ONLY with a JSON object: {self._json_fields()}"""
 
     def _build_repair_prompt(
         self, message: str, context: str, bad_output: str, error: Exception

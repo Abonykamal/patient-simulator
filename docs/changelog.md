@@ -7,6 +7,15 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
+### 2026-06-16 — Phase 5: Memory & Context complete (124 unit tests total, +20)
+- `src/memory/context_builder.py` — pure per-agent context renderer: slice *policy* (agent→categories, ADR-024/028) over the new `graph.facts()` *mechanism*, labelled blocks (state slice → patient-only rapport line → recent turns), `you`/`student` labelling, nurse `metadata` (vitals) surfaced; `HistoryTurn` value type so the layer never imports `db.models`
+- `src/memory/manager.py` — public API: per-agent thread-filtering (D2), windowing to the last `RECENT_EXCHANGES_N` exchanges (D6), and the `apply_rapport_delta` trust clamp (ADR-027); pure/I-O-free (typed injected inputs, no DB, no LLM)
+- `src/memory/summarizer.py` — deferred stub (design D5): structured stores (graph `[revealed]` + persisted `trust_level`) cover the MVP
+- `src/state/graph.py` — generic `facts()` accessor + `Fact` type (slice mechanism; `summary()` untouched)
+- `src/agents/base.py` — `AgentResponse.rapport_delta` + `_json_fields` hook; `src/agents/patient.py` — persona honours the injected rapport level and emits `rapport_delta` (C2 trust)
+- `src/db/` — `ConversationTurn.trust_level` + `addressed_to` columns and `add_turn` params; `src/core/config.py` — `RECENT_EXCHANGES_N`, trust bounds
+- ADRs 026–028 added (memory layer/injected context, C2 trust model, slice policy-in-memory)
+
 ### 2026-06-14 — Phase 4: Agents complete (104 unit tests total, +14)
 - `src/agents/base.py` — `BaseAgent` template-method pipeline (assemble → `complete` → parse/validate/repair) + `AgentResponse` model (`response_text`, `revealed_nodes`, `emotional_state`); LLM injected, validate-and-repair reused from the generator
 - `src/agents/patient.py` — `PatientAgent`: approved persona with prompt-enforced disclosure hierarchy + trust rubric, plain language, no diagnosis leakage, defers vitals to staff, memory vagueness, pacing

@@ -34,6 +34,20 @@ async def test_add_turn_stores_revealed_nodes(db_session):
     assert turn.revealed_nodes_json == ["radiation"]
 
 
+async def test_add_turn_persists_trust_level_and_addressed_to(db_session):
+    sim = await crud.create_session(db_session, "x", "X")
+    turn = await crud.add_turn(
+        db_session,
+        sim.id,
+        "patient",
+        "It's in my chest.",
+        trust_level=2,
+        addressed_to="student",
+    )
+    assert turn.trust_level == 2
+    assert turn.addressed_to == "student"
+
+
 async def test_get_turns_orders_and_limits_to_recent(db_session):
     sim = await crud.create_session(db_session, "x", "X")
     for i in range(3):

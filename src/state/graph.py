@@ -19,8 +19,19 @@ memory manager; agents update it via ``mark_revealed``.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import NamedTuple
 
 import networkx as nx
+
+
+class Fact(NamedTuple):
+    """One fact as the memory layer consumes it (agent-agnostic)."""
+
+    category: str
+    label: str
+    revealed: bool
+    disclosure_difficulty: str | None
+    metadata: dict
 
 
 class PatientStateGraph:
@@ -114,3 +125,27 @@ class PatientStateGraph:
                 state = "revealed" if revealed else "hidden"
                 lines.append(f"  - {label} [{state}]")
         return "\n".join(lines)
+
+    def facts(self, categories: Iterable[str] | None = None) -> list[Fact]:
+        """Return the patient's facts, optionally filtered to ``categories``.
+
+        ``categories=None`` returns every node. This is the generic, agent-
+        agnostic slicing *mechanism*: the memory layer supplies the category
+        whitelist that encodes each agent's slice *policy* (ADR-024/ADR-028).
+        Deterministic node-id order so callers and tests are stable.
+        """
+        allowed = set(categories) if categories is not None else None
+        out: list[Fact] = []
+        for node_id, data in sorted(self._g.nodes(data=True), key=lambda nd: nd[0]):
+            if allowed is not None and data["category"] not in allowed:
+                continue
+            out.append(
+                Fact(
+                    category=data["category"],
+                    label=data["label"],
+                    revealed=data["revealed"],
+                    disclosure_difficulty=data.get("disclosure_difficulty"),
+                    metadata=data.get("metadata", {}),
+                )
+            )
+        return out

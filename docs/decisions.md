@@ -573,5 +573,73 @@ Classifying every unaddressed turn would reintroduce the per-turn LLM cost ADR-0
 
 ---
 
+## ADR-026: Memory & Context Layer — Injected Typed Inputs, Per-Agent Threading, Labelled Context
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Agents accept `context` as an injected string (ADR-023). Phase 5 must decide how that string is produced: where its inputs come from, what conversation history each agent sees, and how the pieces are laid out.
+
+**Options considered:**
+- Inputs: the memory layer fetches turns from `crud` itself vs receives them as arguments
+- History: one global transcript shared by all agents vs a per-agent thread
+- History type: raw `ConversationTurn` ORM rows vs a framework-free value type
+- Layout: one prose header vs a labelled block per section
+
+**Decision:** Inputs are **injected as typed objects** (graph, `HistoryTurn`s, `trust_level`) and rendered to a string — the layer is pure/I-O-free. Each agent sees only its **own thread** with the student. History is carried as a framework-free `HistoryTurn`. Context = **labelled blocks**: state slice → patient-only rapport line → last `RECENT_EXCHANGES_N` exchanges.
+
+**Reasoning:**
+Injection mirrors how agents take an injected `complete_fn`: the layer unit-tests with plain objects and no DB, and the orchestrator keeps the session/transaction boundary (ADR-014). A global transcript would leak one agent's spoken disclosures into another's context — blowing a hole through the ADR-024 slice on the conversation axis — so per-agent threading makes the two axes agree (and it is more realistic and cheaper). A `HistoryTurn` value type keeps the layer from importing `db.models` and dodges detached-session pitfalls. Labelled blocks (not a single header) are the real expression of "don't make the model infer whether a line is a fact, a prior utterance, or the current instruction." Summarisation is deferred (design D5): a long session is a fraction of the model window, and the graph's `[revealed]` flags + `trust_level` already capture what a recap would.
+
+**Consequences:**
+`src/memory/context_builder.py` (renderer + `HistoryTurn`) and `src/memory/manager.py` (`build_context`, thread-filter, windowing) are pure modules. `ConversationTurn` gained an `addressed_to` column so a student turn can be threaded to its agent. `RECENT_EXCHANGES_N` lives in config. Pairs with ADR-023/ADR-024/ADR-027/ADR-028.
+
+---
+
+## ADR-027: Trust Model — Persisted Level Nudged by a Patient-Emitted Rapport Delta (C2)
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The patient's disclosure hierarchy includes `only_if_trust_built` facts. The system needs a *consistent* notion of how much the student has earned the patient's trust, without bloating the prompt with full history or making trust lurch turn to turn.
+
+**Options considered:**
+- No stored state: let the patient judge rapport fresh each turn from history (A)
+- Explicit level nudged by rules (B)
+- Explicit level nudged by an LLM, via a separate judge call (C1) or folded into the patient's own output (C2)
+- Persist the level on the session row (current only) vs on each turn (trajectory)
+
+**Decision:** **C2** — a persisted `trust_level` (0–3, baseline 1) nudged each turn by a bounded `rapport_delta` (−1/0/+1) the patient emits in its own JSON; `only_if_trust_built` unlocks at level 3. The level is persisted **per patient turn**. `emotional_state` and trust are kept as **distinct** variables.
+
+**Reasoning:**
+Carrying a persisted level and only nudging it (rather than re-judging absolute trust each turn) makes rapport both cheap (~5 tokens in the prompt, no history bloat) and consistent (it can't lurch). Default delta is 0, so ordinary factual questions don't move it — which removes the ambiguity of forcing a judgement on neutral turns. Folding the delta into the patient's existing call (C2) costs zero extra requests — decisive on a free tier — and a bounded ±1 reaction to bedside manner is the character's own reaction, far from the circular "reuse `emotional_state` as the trust input" we rejected. Persisting per turn preserves the rapport *trajectory*, a gradeable clinical skill in Phase 7. The decision is reversible to a separate judge (C1) without touching the rest of the layer.
+
+**Consequences:**
+`AgentResponse` gained `rapport_delta`; `BaseAgent` gained a `_json_fields` hook the patient overrides; the patient persona honours the injected `CURRENT RAPPORT` line and emits the delta. `ConversationTurn.trust_level` persists it; `manager.apply_rapport_delta` clamps it. The patient's context now tags each fact with its `disclosure_difficulty` (surfaced via `graph.facts()`), which is what finally makes the Phase-4 disclosure hierarchy functional. Pairs with ADR-024/ADR-026.
+
+---
+
+## ADR-028: Per-Agent Slice — Policy in Memory, Mechanism in the Graph
+**Date:** June 2026
+**Status:** Accepted (implements ADR-024)
+
+**Context:**
+ADR-024 fixed *what* each agent may see. Phase 5 must decide *where* that slicing logic lives: `graph.summary()` renders everything, but nurse/family need reduced views.
+
+**Options considered:**
+- Slice-aware views in the graph (e.g. a "nurse view")
+- The memory layer reaches into the graph and filters its internals
+- A clean split: a generic filtering mechanism in the graph, the agent policy in memory
+
+**Decision:** **Split.** The graph gains a generic, agent-agnostic `facts(categories)` accessor (the *mechanism*); the `agent → categories` mapping (the *policy*) lives in `context_builder`. The existing `summary()` is untouched.
+
+**Reasoning:**
+"What nodes are in category X" is a data question the graph owns; "what the nurse may see" is a policy the agent-aware layer owns. Teaching the graph the words "nurse"/"family" would break its "depends on nothing of ours" property and force a graph edit for every new agent or rule. With the split, a future "doctor" agent or the deferred "collateral reveals a concealed fact" rule (ADR-024) is a policy tweak in memory, not a data-structure change.
+
+**Consequences:**
+`PatientStateGraph.facts()` returns `Fact(category, label, revealed, disclosure_difficulty, metadata)` in deterministic order; `context_builder._SLICE_POLICY` encodes ADR-024. Pairs with ADR-024/ADR-026.
+
+---
+
 *New decisions will be added here as the project is built.*
 *Each entry should take ~5 minutes to write. Date it, describe the context, log the options you considered, and record why you chose what you chose.*

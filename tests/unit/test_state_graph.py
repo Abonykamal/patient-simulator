@@ -82,3 +82,42 @@ def test_summary_groups_by_category_and_marks_revealed_state():
     assert "chest pain" in summary
     assert "revealed" in summary.lower()
     assert "hidden" in summary.lower()
+
+
+def _facts_graph() -> PatientStateGraph:
+    """A graph whose nodes carry difficulty + metadata, for the facts() accessor."""
+    g = nx.Graph()
+    g.add_node(
+        "chest_pain",
+        label="chest pain",
+        category="symptom",
+        revealed=True,
+        disclosure_difficulty=None,
+        metadata={"bp": "162/94"},
+    )
+    g.add_node(
+        "cocaine",
+        label="cocaine use",
+        category="hidden",
+        revealed=False,
+        disclosure_difficulty="only_if_trust_built",
+        metadata={},
+    )
+    return PatientStateGraph(g)
+
+
+def test_facts_returns_all_when_no_filter():
+    cats = {f.category for f in _facts_graph().facts()}
+    assert cats == {"symptom", "hidden"}
+
+
+def test_facts_filters_to_category_whitelist():
+    labels = [f.label for f in _facts_graph().facts({"symptom"})]
+    assert labels == ["chest pain"]
+
+
+def test_facts_carries_difficulty_and_metadata():
+    by_label = {f.label: f for f in _facts_graph().facts()}
+    assert by_label["chest pain"].revealed is True
+    assert by_label["chest pain"].metadata == {"bp": "162/94"}
+    assert by_label["cocaine use"].disclosure_difficulty == "only_if_trust_built"
