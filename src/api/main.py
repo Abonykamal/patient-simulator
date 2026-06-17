@@ -43,7 +43,16 @@ async def lifespan(app: FastAPI):
     log.info("corpus_ingested", cases=cases)
 
     app.state.generator = ScenarioGenerator(retriever)
-    app.state.router = Router(PatientAgent(), NurseAgent(), FamilyAgent())
+
+    # The nurse/family agents are stateless, so they are built once and shared; the
+    # patient agent is parameterised by the patient's name, so the router is built
+    # per session via this factory (the orchestrator calls it once it knows the name).
+    nurse, family = NurseAgent(), FamilyAgent()
+
+    def build_router(patient_name: str) -> Router:
+        return Router(PatientAgent(patient_name), nurse, family)
+
+    app.state.router_factory = build_router
     log.info("app_ready")
     yield
 

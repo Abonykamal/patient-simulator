@@ -68,9 +68,8 @@ async def start_session(db, generator, scenario_type: str) -> tuple[SimulationSe
     return session, scenario
 
 
-def _rebuild_graph(session: SimulationSession, turns: list) -> PatientStateGraph:
-    """Project the live graph from the stored scenario + the per-turn reveal log."""
-    scenario = Scenario.model_validate(session.patient_profile_json)
+def _rebuild_graph(scenario: Scenario, turns: list) -> PatientStateGraph:
+    """Project the live graph from the scenario + the per-turn reveal log."""
     graph = build_graph(scenario)
     for turn in turns:
         # Same hallucination-safe guard runs on replay as on the live turn, so the
@@ -88,13 +87,16 @@ def _current_trust(turns: list) -> int:
 
 
 async def run_turn(
-    db, router, session_id: str, content: str, addressed_to: str | None = None
+    db, build_router, session_id: str, content: str, addressed_to: str | None = None
 ) -> TurnResult:
     """Run one conversation turn and persist the exchange.
 
     Args:
         db: active database session.
-        router: a Router (or fake) exposing ``async resolve(message, addressed_to)``.
+        build_router: ``(patient_name) -> Router``; builds the agent router for this
+            session. A factory rather than a shared router because the patient agent
+            is parameterised by the patient's name (Phase 4), so it cannot be a
+            global singleton. Injected, so tests pass a fake factory.
         session_id: the session this turn belongs to.
         content: the student's message.
         addressed_to: explicit recipient (patient | nurse | family), or None.
@@ -112,11 +114,14 @@ async def run_turn(
         raise LookupError(f"unknown session: {session_id}")
 
     # 1. Reconstitute session state from the DB (the source of truth).
+    scenario = Scenario.model_validate(session.patient_profile_json)
     turns = await crud.get_turns(db, session_id)
-    graph = _rebuild_graph(session, turns)
+    graph = _rebuild_graph(scenario, turns)
     trust = _current_trust(turns)
 
-    # 2. Resolve who answers, then build *their* context (per-agent slice + thread).
+    # 2. Build this session's router (patient agent needs the patient's name), then
+    #    resolve who answers and build *their* context (per-agent slice + thread).
+    router = build_router(scenario.patient_name)
     agent = await router.resolve(content, addressed_to)
     name = agent.agent_name
     is_patient = name == "patient"

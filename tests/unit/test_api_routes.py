@@ -35,7 +35,7 @@ def client():
     # Bypass the lifespan singletons + real db: these routes only need the HTTP seam.
     app.dependency_overrides[deps.get_db] = lambda: object()
     app.dependency_overrides[deps.get_generator] = lambda: object()
-    app.dependency_overrides[deps.get_router] = lambda: object()
+    app.dependency_overrides[deps.get_router_factory] = lambda: object()
     yield TestClient(app)
     app.dependency_overrides.clear()
 

@@ -658,7 +658,7 @@ Phase 6 wires the isolated components (router, memory, agents, state, db, genera
 Honors CLAUDE.md's "routes are thin, business logic in core modules": the orchestrator is pure and injected, so the whole loop unit-tests with fakes and no HTTP/network, while the routes need only a couple of thin seam tests. Ordering writes after the LLM call makes a failed turn retry-safe with no half-written turn polluting the thread or the Phase-7 transcript — which is exactly how CLAUDE.md's "never let a provider error crash a session" is realised here.
 
 **Consequences:**
-New `src/conversation/orchestrator.py`, `src/api/{main,deps,schemas}.py`, `src/api/routes/{sessions,conversation}.py`. No reviewed module was edited — everything is consumed as-is. `TurnResponse` deliberately omits `revealed_nodes` (the student must not see what they did/didn't surface). Pairs with ADR-030/ADR-031.
+New `src/conversation/orchestrator.py`, `src/api/{main,deps,schemas}.py`, `src/api/routes/{sessions,conversation}.py`. No reviewed module was edited — everything is consumed as-is. `TurnResponse` deliberately omits `revealed_nodes` (the student must not see what they did/didn't surface). Because the patient agent is parameterised by the patient's name (Phase 4), the router is injected as a per-session **factory** `build_router(patient_name)` — built in the lifespan with the stateless nurse/family shared inside — rather than a single shared instance; this wiring gap was surfaced by the live smoke test (`scripts/smoke_conversation.py`), not the fake-injected unit tests. Pairs with ADR-030/ADR-031.
 
 ---
 

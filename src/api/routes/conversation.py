@@ -23,12 +23,12 @@ async def post_turn(
     session_id: str,
     body: schemas.TurnRequest,
     db: AsyncSession = Depends(deps.get_db),
-    agent_router=Depends(deps.get_router),
+    build_router=Depends(deps.get_router_factory),
 ) -> schemas.TurnResponse:
     """Run one conversation turn and return the answering agent's reply."""
     try:
         result = await orchestrator.run_turn(
-            db, agent_router, session_id, body.content, body.addressed_to
+            db, build_router, session_id, body.content, body.addressed_to
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Session not found.") from exc

@@ -219,7 +219,9 @@ injected so it unit-tests with fakes and no network. `start_session` generates a
 patient (RAG) and stores the *full* scenario in `patient_profile_json`. `run_turn`
 rebuilds the state graph from the stored scenario + the per-turn reveal log
 (rebuild-from-turns / event sourcing, ADR-030), reads current trust from the last
-patient turn, resolves the agent (router), builds *its* context (memory), calls it
+patient turn, builds this session's router via the injected `build_router(patient_name)`
+factory (the patient agent is parameterised by the patient's name, so the router cannot
+be a global singleton), resolves the agent, builds *its* context (memory), calls it
 (the live LLM), applies `mark_revealed` + the rapport nudge, then persists the
 student + agent turns. The LLM call runs **before** any write, so a failed turn
 leaves zero partial state and is retry-safe (ADR-029).

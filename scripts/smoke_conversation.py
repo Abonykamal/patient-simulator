@@ -68,7 +68,13 @@ async def main() -> int:
     retriever = Retriever(Embedder(), ephemeral_collection())
     retriever.ingest_corpus(CORPUS_DIR)
     generator = ScenarioGenerator(retriever)
-    router = Router(PatientAgent(), NurseAgent(), FamilyAgent())  # default = live LLM
+
+    # The patient agent needs the patient's name, so the router is built per session
+    # by the orchestrator via this factory (default complete_fn = the live LLM).
+    nurse, family = NurseAgent(), FamilyAgent()
+
+    def build_router(patient_name: str) -> Router:
+        return Router(PatientAgent(patient_name), nurse, family)
 
     async with sessionmaker() as db:
         print(f"[1/3] generating a '{CATEGORY}' patient via the live LLM ...")
@@ -79,7 +85,7 @@ async def main() -> int:
         print("[2/3] running a scripted interview (live agent calls) ...")
         for content, to in SCRIPT:
             print(f"\n  student → {to}: {content}")
-            result = await run_turn(db, router, session.id, content, to)
+            result = await run_turn(db, build_router, session.id, content, to)
             print(f"  {result.speaker} ({result.emotional_state}): {result.content}")
 
         await db.commit()

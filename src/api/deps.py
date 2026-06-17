@@ -12,7 +12,7 @@ from fastapi import Request
 
 from src.db.session import get_db  # noqa: F401 — re-exported as the shared db dep
 
-__all__ = ["get_db", "get_generator", "get_router"]
+__all__ = ["get_db", "get_generator", "get_router_factory"]
 
 
 def get_generator(request: Request):
@@ -20,6 +20,10 @@ def get_generator(request: Request):
     return request.app.state.generator
 
 
-def get_router(request: Request):
-    """The agent Router built once in the app lifespan."""
-    return request.app.state.router
+def get_router_factory(request: Request):
+    """The ``(patient_name) -> Router`` factory built in the app lifespan.
+
+    A factory, not a single Router: the patient agent is parameterised by the
+    patient's name, so the router is built per session (the stateless nurse/family
+    agents are shared inside it)."""
+    return request.app.state.router_factory

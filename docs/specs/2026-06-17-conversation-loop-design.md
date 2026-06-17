@@ -46,11 +46,12 @@ async def start_session(db, generator, scenario_type: str) -> tuple[SimulationSe
     # → create_session(db, scenario_id, scenario_name, patient_profile=scenario.model_dump())
     # → return (session, scenario)   # the FULL scenario is stored so the graph can be rebuilt
 
-async def run_turn(db, router, session_id, content, addressed_to) -> TurnResult:
-    # 1 load session + turns; rebuild graph: build_graph(Scenario(**patient_profile_json)),
+async def run_turn(db, build_router, session_id, content, addressed_to) -> TurnResult:
+    # 1 load session + turns; parse scenario; rebuild graph: build_graph(scenario),
     #   then replay graph.mark_revealed over every turn's revealed_nodes_json;
     #   read current trust = last patient turn's trust_level, else TRUST_BASELINE
-    # 2 agent = await router.resolve(content, addressed_to); name = agent.agent_name
+    # 2 router = build_router(scenario.patient_name)  # patient agent needs the name
+    #   agent = await router.resolve(content, addressed_to); name = agent.agent_name
     # 3 history = [HistoryTurn(speaker, content, addressed_to) for each turn]
     #   context = manager.build_context(name, graph, history, trust if name=="patient" else None)
     # 4 resp = await agent.respond(content, context)         # risky LLM call, FIRST

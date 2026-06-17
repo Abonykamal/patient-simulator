@@ -75,6 +75,18 @@ class FakeRouter:
         return self.agent
 
 
+class FakeRouterFactory:
+    """Stands in for the injected ``(patient_name) -> Router`` factory."""
+
+    def __init__(self, router: FakeRouter) -> None:
+        self.router = router
+        self.patient_name: str | None = None
+
+    def __call__(self, patient_name: str) -> FakeRouter:
+        self.patient_name = patient_name
+        return self.router
+
+
 async def _make_session(db_session, scenario: Scenario):
     return await crud.create_session(
         db_session,
@@ -118,11 +130,13 @@ async def test_run_turn_patient_persists_exchange_and_marks_reveals(db_session):
         ),
     )
 
-    result = await run_turn(db_session, FakeRouter(agent), sim.id, "Where's the pain?", "patient")
+    factory = FakeRouterFactory(FakeRouter(agent))
+    result = await run_turn(db_session, factory, sim.id, "Where's the pain?", "patient")
 
     assert result.speaker == "patient"
     assert result.content == "It's in my chest."
     assert result.emotional_state == "anxious"
+    assert factory.patient_name == "Mr Adams"  # router built with this session's patient
 
     turns = await crud.get_turns(db_session, sim.id)
     assert [t.speaker for t in turns] == ["student", "patient"]
@@ -142,7 +156,7 @@ async def test_run_turn_replays_prior_reveals_into_context(db_session):
         "patient",
         AgentResponse(response_text="ok", revealed_nodes=["sym_pain"], emotional_state="calm"),
     )
-    await run_turn(db_session, FakeRouter(agent1), sim.id, "q1", "patient")
+    await run_turn(db_session, FakeRouterFactory(FakeRouter(agent1)), sim.id, "q1", "patient")
     # Before this turn, sym_pain was disclosed once; the rebuilt graph must reflect it.
     assert "crushing chest pain [hidden]" in agent1.received_context
 
@@ -150,7 +164,7 @@ async def test_run_turn_replays_prior_reveals_into_context(db_session):
         "patient",
         AgentResponse(response_text="ok", revealed_nodes=[], emotional_state="calm"),
     )
-    await run_turn(db_session, FakeRouter(agent2), sim.id, "q2", "patient")
+    await run_turn(db_session, FakeRouterFactory(FakeRouter(agent2)), sim.id, "q2", "patient")
     assert "crushing chest pain [revealed]" in agent2.received_context
 
 
@@ -161,7 +175,9 @@ async def test_run_turn_stores_resolved_agent_as_addressed_to(db_session):
     nurse = FakeAgent("nurse", AgentResponse(response_text="BP 148/92.", emotional_state="neutral"))
     router = FakeRouter(nurse)
 
-    await run_turn(db_session, router, sim.id, "What's his BP?", addressed_to=None)
+    await run_turn(
+        db_session, FakeRouterFactory(router), sim.id, "What's his BP?", addressed_to=None
+    )
 
     assert router.received == ("What's his BP?", None)  # raw input passed through
     turns = await crud.get_turns(db_session, sim.id)
@@ -177,7 +193,9 @@ async def test_run_turn_nonpatient_turn_carries_no_trust(db_session):
         AgentResponse(response_text="BP 148/92.", emotional_state="neutral", rapport_delta=1),
     )
 
-    await run_turn(db_session, FakeRouter(nurse), sim.id, "What's his BP?", "nurse")
+    await run_turn(
+        db_session, FakeRouterFactory(FakeRouter(nurse)), sim.id, "What's his BP?", "nurse"
+    )
 
     turns = await crud.get_turns(db_session, sim.id)
     nurse_turn = turns[1]
@@ -196,7 +214,9 @@ async def test_run_turn_reads_back_trust_and_clamps(db_session):
         "patient",
         AgentResponse(response_text="thanks", emotional_state="warm", rapport_delta=1),
     )
-    await run_turn(db_session, FakeRouter(agent), sim.id, "You're very kind", "patient")
+    await run_turn(
+        db_session, FakeRouterFactory(FakeRouter(agent)), sim.id, "You're very kind", "patient"
+    )
 
     assert "CURRENT RAPPORT WITH THIS STUDENT: 3 / 3" in agent.received_context  # read-back
     turns = await crud.get_turns(db_session, sim.id)
@@ -210,7 +230,9 @@ async def test_run_turn_agent_failure_persists_nothing(db_session):
     agent = FakeAgent("patient", AgentResponseError("model would not comply"))
 
     with pytest.raises(AgentResponseError):
-        await run_turn(db_session, FakeRouter(agent), sim.id, "Where's the pain?", "patient")
+        await run_turn(
+            db_session, FakeRouterFactory(FakeRouter(agent)), sim.id, "Where's the pain?", "patient"
+        )
 
     assert await crud.get_turns(db_session, sim.id) == []  # nothing persisted → retry-safe
 
@@ -218,4 +240,6 @@ async def test_run_turn_agent_failure_persists_nothing(db_session):
 async def test_run_turn_unknown_session_raises_lookuperror(db_session):
     agent = FakeAgent("patient", AgentResponse(response_text="hi", emotional_state="calm"))
     with pytest.raises(LookupError):
-        await run_turn(db_session, FakeRouter(agent), "no-such-session", "hello", "patient")
+        await run_turn(
+            db_session, FakeRouterFactory(FakeRouter(agent)), "no-such-session", "hello", "patient"
+        )
