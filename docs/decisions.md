@@ -680,7 +680,7 @@ The state graph is stateful (it accumulates `revealed` flags; trust climbs), but
 The DB stays the single source of truth — no second copy of the revealed state to drift, no cache to invalidate, naturally restart-safe and stateless. The same hallucination-safe `mark_revealed` guard runs on replay as on the live turn, so the rebuilt state is exactly what the session produced. The cost (rebuild + a short replay) is trivial at ~16 nodes and a handful of turns. The in-memory cache was rejected as hidden global state that dies on restart and breaks with >1 worker; the per-turn snapshot was rejected for storing derived state that can drift from the turn log.
 
 **Consequences:**
-`start_session` stores the **full** scenario in `patient_profile_json` so the structure can be rebuilt. The `serializer` is not needed mid-session; it remains for the Phase-7 end-of-session snapshot. `_current_trust` likewise reads the last patient turn's `trust_level` (else baseline) from the same turn log (ADR-027). Pairs with ADR-029.
+`start_session` stores the **full** scenario in `patient_profile_json` so the structure can be rebuilt. The `serializer` is not needed mid-session — and, as ADR-032 (D6) later concluded, not at session end either: rebuild-from-turns makes any snapshot redundant, so it remains unused. `_current_trust` likewise reads the last patient turn's `trust_level` (else baseline) from the same turn log (ADR-027). Pairs with ADR-029.
 
 ---
 
@@ -702,6 +702,30 @@ Product clarity over feature-showcasing: the student only cares that the right p
 
 **Consequences:**
 `frontend/app.py` exposes a `Talking to` selectbox; the orchestrator passes `addressed_to` straight through and persists the **resolved** agent name on the student turn (so per-agent threading, ADR-026, attributes it correctly even if a future caller does send `AUTO`). Pairs with ADR-025/ADR-029.
+
+---
+
+## ADR-032: Evaluation Layer — Rubric from Nodes, Judge Classifies / Code Scores, Idempotent Fail-Loud
+**Date:** June 2026
+**Status:** Accepted (implements ADR-011)
+
+**Context:**
+Phase 7 grades the student at session end with an LLM-as-judge. Open questions: where does the rubric come from (the spec says "from the scenario file", but the `Scenario` schema has no rubric field), who computes the score, where the report text comes from, where the coordination lives, and how failures behave.
+
+**Options considered:**
+- Rubric: derive from the scenario's nodes (A) vs add an authored `rubric` schema field (B) vs hybrid (C).
+- Score: judge returns the number (A) vs code computes it from per-item verdicts (B).
+- Report: code formats it (A) vs the judge writes the prose (B).
+- Coordination: a dedicated `src/evaluation/evaluator.py` (A) vs add it to the conversation orchestrator (B).
+
+**Decision:**
+**Rubric derived from nodes** — each node is a topic to ask about, weighted by the `importance` carried since ADR-017 (`critical=3, relevant=2, minor=1`). The **judge classifies** each rubric item asked/not-asked (+ a reasoning narrative); **code computes** the score (weighted coverage) and **formats** the report around the narrative. A dedicated **`evaluator.py`** coordinates. `POST /evaluate` is **idempotent** (returns the existing evaluation, no re-judge), **ends + judges + saves** in one action, and the judge **fails loud** (`503`, no fallback). The judge prompt is **process-based** (ADR-011): grade asking, not the patient's answers; "asked" needs a student utterance explicitly seeking the info (incl. clinical paraphrase); evidence is never inferred from the patient's reply.
+
+**Reasoning:**
+Deriving the rubric closes the loop ADR-017 opened (no schema change; every generated patient gets a rubric). Splitting judgement (LLM) from arithmetic (code) makes the score reproducible, defensible, and unit-testable while leaving the model only the "did they ask X?" call it's good at. A code-formatted report needs no second LLM call and can't drift. The dedicated coordinator keeps rubric/judge/report cohesive and the conversation orchestrator focused. Idempotency saves judge quota and can't overwrite a result; fail-loud is correct here (a degraded judge silently misleads — the opposite of a retry-safe turn).
+
+**Consequences:**
+New `src/evaluation/{rubric,judge,report,evaluator}.py`, `api/routes/evaluation.py`, `EvaluationResponse`, `get_judge`, a judge singleton in the lifespan, the frontend "End interview & get feedback" button, and `scripts/smoke_evaluation.py`. The judge uses `agent_name="judge"` (Groq, no fallback). **No end-of-session graph snapshot** (D6): rebuild-from-turns (ADR-030) makes it redundant, so `evaluate_session` only marks the session `completed` — superseding ADR-030's earlier note that the serializer would snapshot at session end. Pairs with ADR-011/ADR-017/ADR-030.
 
 ---
 

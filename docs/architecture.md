@@ -59,7 +59,7 @@ subpackage is one layer:
 | Conversation | `src/conversation/` | The per-turn orchestrator (`start_session`, `run_turn`): router → memory → agent → state → db | ✅ Phase 6 |
 | API | `src/api/` | FastAPI routes (thin) + lifespan-built singletons | ✅ Phase 6 |
 | Frontend | `frontend/` | Streamlit UI (HTTP only) | ✅ Phase 6 |
-| Evaluation | `src/evaluation/` | LLM-as-judge rubric scoring + report | 🚧 Phase 7 |
+| Evaluation | `src/evaluation/` | LLM-as-judge: rubric (from nodes), judge, score+report, coordinator | ✅ Phase 7 |
 
 **Dependency direction:** agents → LLM layer (never raw provider SDKs); routes →
 core modules (never the reverse); state and scenarios depend on nothing of ours
@@ -245,10 +245,30 @@ The evaluate/report endpoints and the end-session affordance are deferred to
 Phase 7 (ADR-029). The live agent path is exercised by the hand-run
 `scripts/smoke_conversation.py`.
 
-## 10. Evaluation Layer — 🚧 To be filled in (Phase 7)
+## 10. Evaluation Layer (✅ Phase 7)
 
-_LLM-as-judge over the transcript + process-based rubric (ADR-011); Groq/Llama,
-no fallback (fail loudly)._
+The end-of-session LLM-as-judge (ADR-032). Four small modules + a coordinator:
+
+- **`rubric.py`** — `build_rubric(scenario)` turns each node into a `RubricItem`
+  (topic = label, weight = `importance`). The rubric is *derived*, not authored —
+  consuming the `importance` field ADR-017 carried for exactly this.
+- **`judge.py`** — the LLM-as-judge (`agent_name="judge"` → Groq/Llama, **no
+  fallback**). The approved **process-based** prompt grades *asking* not answers:
+  an item is "asked" only with an explicit student utterance (incl. clinical
+  paraphrase), never inferred from the patient's reply. Returns per-item
+  asked/not-asked + a reasoning narrative; validate-and-repair; LLM injected.
+- **`report.py`** — pure: `score` = weighted coverage (`critical=3, relevant=2,
+  minor=1`), `format_report` wraps the narrative with the score + covered/missed.
+  The judge does judgement; code does the arithmetic (reproducible, testable).
+- **`evaluator.py`** — `evaluate_session(db, judge, id)`: idempotent (returns an
+  existing evaluation, no re-judge) → build rubric → render transcript → judge →
+  score+format → mark session `completed` → save. The judge call runs before any
+  write; on failure the route returns **503 (fail loud)** — a degraded evaluation
+  must not look like a pass.
+
+Exposed via `POST /sessions/{id}/evaluate` (ends + judges + saves) and
+`GET /sessions/{id}/report`. No end-of-session graph snapshot — rebuild-from-turns
+(ADR-030) makes it redundant. Live judge proven by `scripts/smoke_evaluation.py`.
 
 ---
 
@@ -272,9 +292,11 @@ student message (+ explicit recipient) → orchestrator.run_turn
 
 ### Session end
 ```
-end trigger → transcript from SQLite + rubric from scenario file
-          → judge LLM → evaluation JSON → SQLite → report rendered
-          → final graph serialized to state_snapshot_json
+POST /evaluate → evaluator.evaluate_session (idempotent)
+          → build_rubric(scenario) + transcript from SQLite
+          → judge LLM (Groq, no fallback) → per-item asked/not-asked + notes
+          → report.score (weighted coverage) + format_report
+          → mark session completed (no snapshot, ADR-030) → save_evaluation → report rendered
 ```
 
 ---
@@ -290,8 +312,10 @@ end trigger → transcript from SQLite + rubric from scenario file
 - **No mid-session in-memory state** — the live `PatientStateGraph` is rebuilt each
   turn from the stored scenario + the per-turn reveal log (rebuild-from-turns,
   ADR-030, superseding the in-session-only approach of ADR-003), so the DB is the
-  single source of truth and the loop is stateless / restart-safe. The `serializer`
-  snapshots the final graph to SQLite at session end (Phase 7).
+  single source of truth and the loop is stateless / restart-safe. No graph
+  snapshot is taken even at session end — it would be redundant under
+  rebuild-from-turns (ADR-032, D6) — so the `serializer` and `state_snapshot_json`
+  remain available but unused.
 
 ---
 
@@ -309,11 +333,14 @@ real call. The conversation orchestrator is tested directly against in-memory
 SQLite with fake agents/router/generator (reveals replay, trust read-back/clamp,
 resolved-name threading, retry-safety on failure); the FastAPI routes get thin
 `TestClient` tests with `dependency_overrides` (happy path + 503/404 shapes), so
-the HTTP seam is covered without building the real singletons. As of Phase 6:
-**139 unit tests**.
+the HTTP seam is covered without building the real singletons. The evaluation layer
+follows the same pattern: rubric/report are pure (direct tests), the judge and the
+`evaluate_session` coordinator use a fake judge over in-memory SQLite (scoring,
+idempotency, fail paths). As of Phase 7: **159 unit tests**.
 
-The two live paths are covered only by hand-run smoke scripts excluded from the
-suite — `scripts/smoke_generator.py` (RAG → generator) and
-`scripts/smoke_conversation.py` (the full loop with live agents). A dedicated
+The three live paths are covered only by hand-run smoke scripts excluded from the
+suite — `scripts/smoke_generator.py` (RAG → generator),
+`scripts/smoke_conversation.py` (the full loop with live agents), and
+`scripts/smoke_evaluation.py` (the live judge). A dedicated
 automated integration suite remains deferred; the smoke scripts are the
 deliberate, manual exception.

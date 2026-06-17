@@ -20,9 +20,10 @@ from src.agents.family import FamilyAgent
 from src.agents.nurse import NurseAgent
 from src.agents.patient import PatientAgent
 from src.agents.router import Router
-from src.api.routes import conversation, sessions
+from src.api.routes import conversation, evaluation, sessions
 from src.core.logging import get_logger
 from src.db.session import init_db
+from src.evaluation.judge import Judge
 from src.rag.embedder import Embedder
 from src.rag.generator import ScenarioGenerator
 from src.rag.retriever import Retriever, persistent_collection
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
         return Router(PatientAgent(patient_name), nurse, family)
 
     app.state.router_factory = build_router
+    app.state.judge = Judge()  # stateless; default complete_fn = live LLM (Groq, no fallback)
     log.info("app_ready")
     yield
 
@@ -60,3 +62,4 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Patient Journey Simulator", lifespan=lifespan)
 app.include_router(sessions.router)
 app.include_router(conversation.router)
+app.include_router(evaluation.router)

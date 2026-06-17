@@ -7,6 +7,16 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
+### 2026-06-17 — Phase 7: Evaluation complete (159 unit tests total, +20)
+- `src/evaluation/rubric.py` — `build_rubric(scenario)`: derives the grading rubric from the scenario's nodes (topic + `importance`), consuming the field ADR-017 carried for exactly this; no schema change
+- `src/evaluation/judge.py` — the LLM-as-judge (`agent_name="judge"` → Groq/Llama, no fallback): the approved **process-based** prompt (grade asking not answers; "asked" needs an explicit student utterance incl. clinical paraphrase; never infer from the patient's reply), classifies each item asked/not-asked + a reasoning narrative, validate-and-repair, LLM injected
+- `src/evaluation/report.py` — pure: `score` = weighted coverage (`critical=3, relevant=2, minor=1`) + `format_report`; judgement is the LLM's, arithmetic is code's (reproducible, testable)
+- `src/evaluation/evaluator.py` — `evaluate_session`: idempotent (returns existing, no re-judge) → build rubric → judge → score+format → mark session completed (no graph snapshot — redundant under ADR-030) → save; judge injected
+- `src/api/` — `POST /sessions/{id}/evaluate` (ends + judges + saves; **fail-loud 503**, 404 unknown) + `GET /sessions/{id}/report`; `EvaluationResponse`, `get_judge` dep, judge singleton in lifespan
+- `frontend/app.py` — "End interview & get feedback" button → score + covered/missed + examiner's notes + full report
+- `scripts/smoke_evaluation.py` — hand-run live judge over a seeded transcript (one Groq call)
+- ADR-032 added (rubric-from-nodes, judge-classifies/code-scores, dedicated evaluator, idempotent fail-loud); supersedes ADR-030's end-of-session snapshot note (D6)
+
 ### 2026-06-17 — Phase 6: Full Conversation Loop complete (139 unit tests total, +15)
 - `src/conversation/orchestrator.py` — the per-turn loop, pure and injected: `start_session` (RAG generate → persist full scenario) and `run_turn` (router → memory context → agent LLM → `mark_revealed` → trust nudge → persist). **Rebuild-from-turns** lifecycle (the turns are the event log, the graph a projection — ADR-030); trust read back from the last patient turn and clamped; writes ordered **after** the LLM call so a failed turn is retry-safe (ADR-029)
 - `src/api/` — thin FastAPI layer (CLAUDE.md): `schemas.py` (request/response; `TurnResponse` omits `revealed_nodes` — internal-only), `deps.py` (the `dependency_overrides` seam), `routes/sessions.py` (`POST /sessions`, `GET /sessions/{id}`), `routes/conversation.py` (`POST /sessions/{id}/turns`), `main.py` (app + lifespan building the singletons onto `app.state`). Errors map to 503 (provider/agent failure) / 404 (unknown session)

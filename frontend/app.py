@@ -43,6 +43,7 @@ def _init_state() -> None:
     st.session_state.setdefault("patient_name", None)
     st.session_state.setdefault("scenario_intro", None)
     st.session_state.setdefault("transcript", [])  # [{speaker, content, emotional_state?}]
+    st.session_state.setdefault("report", None)  # the evaluation, once requested
 
 
 def _start_session(scenario_type: str) -> None:
@@ -60,6 +61,20 @@ def _start_session(scenario_type: str) -> None:
     st.session_state.patient_name = data["patient_name"]
     st.session_state.scenario_intro = data["scenario_intro"]
     st.session_state.transcript = []
+    st.session_state.report = None
+
+
+def _evaluate() -> None:
+    """End the interview and fetch the judge's feedback."""
+    try:
+        resp = requests.post(
+            f"{API_BASE}/sessions/{st.session_state.session_id}/evaluate", timeout=_TIMEOUT
+        )
+        resp.raise_for_status()
+    except requests.RequestException:
+        st.error("Could not generate feedback. Please try again.")
+        return
+    st.session_state.report = resp.json()
 
 
 def _send_turn(content: str, addressed_to: str) -> None:
@@ -101,6 +116,12 @@ with st.sidebar:
     if st.button("Start interview", type="primary"):
         _start_session(SCENARIOS[complaint])
 
+    # End + grade the encounter, once one is under way.
+    if st.session_state.session_id and st.session_state.transcript:
+        st.divider()
+        if st.button("End interview & get feedback"):
+            _evaluate()
+
 st.title("🩺 Patient Journey Simulator")
 
 if not st.session_state.session_id:
@@ -109,6 +130,21 @@ if not st.session_state.session_id:
 
 st.subheader(st.session_state.patient_name)
 st.caption(st.session_state.scenario_intro)
+
+# Once the interview has been graded, show the feedback above the transcript.
+if st.session_state.report:
+    report = st.session_state.report
+    st.divider()
+    st.metric("History-taking score", f"{report['score']:.0%}")
+    covered_col, missed_col = st.columns(2)
+    covered_col.markdown("**Asked about**")
+    covered_col.write("\n".join(f"- {t}" for t in report["covered"]) or "—")
+    missed_col.markdown("**Missed**")
+    missed_col.write("\n".join(f"- {t}" for t in report["missed"]) or "—")
+    st.info(report["clinical_reasoning_notes"])
+    with st.expander("Full report"):
+        st.text(report["full_report"])
+    st.divider()
 
 # Redraw the conversation so far from local state (the source of truth for the UI).
 for turn in st.session_state.transcript:

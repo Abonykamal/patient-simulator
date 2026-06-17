@@ -1,7 +1,7 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 6 (Full Conversation Loop) complete — 139 unit tests passing
+**Phase:** Phase 7 (Evaluation) complete — 159 unit tests passing
 **Last updated:** 17-June-2026
 
 ---
@@ -68,10 +68,13 @@
 - [x] Tooling: added `fastapi`, `uvicorn`, `streamlit`, `requests`; one narrow pytest `filterwarnings` for Starlette's TestClient
 
 ### Phase 7: Evaluation (Day 5-6)
-- [ ] `src/evaluation/rubric.py`
-- [ ] `src/evaluation/judge.py`
-- [ ] `src/evaluation/report.py`
-- [ ] `src/api/routes/evaluation.py`
+- [x] `src/evaluation/rubric.py` — `build_rubric(scenario)`: nodes → `RubricItem`s (topic + `importance` weight); derives the rubric, no schema field (ADR-032; 2 unit tests)
+- [x] `src/evaluation/judge.py` — the LLM-as-judge (Groq, no fallback): approved process-based prompt, classifies each item asked/not-asked + reasoning narrative, validate-and-repair, LLM injected (ADR-032; 4 unit tests)
+- [x] `src/evaluation/report.py` — pure: `score` (weighted coverage, 3/2/1) + `format_report`; judgement is the LLM's, arithmetic is code's (ADR-032; 6 unit tests)
+- [x] `src/evaluation/evaluator.py` — `evaluate_session`: idempotent → build rubric → judge → score+format → end session (no snapshot, D6) → save; judge injected (ADR-032; 3 unit tests)
+- [x] `src/api/routes/evaluation.py` — `POST /sessions/{id}/evaluate` (ends+judges+saves; 404/503 fail-loud) + `GET /sessions/{id}/report`; `EvaluationResponse`, `get_judge` dep, judge singleton in lifespan (5 route tests)
+- [x] `frontend/app.py` — "End interview & get feedback" button → score + covered/missed + notes + full report
+- [x] `scripts/smoke_evaluation.py` — hand-run live judge over a seeded transcript (one Groq call)
 
 ### Phase 8: Polish (Day 7-8)
 - [ ] Second scenario file
@@ -83,7 +86,9 @@
 ---
 
 ## What's Next
-Phase 6 done. Begin Phase 7: Evaluation — the LLM-as-judge that runs at session end. `src/evaluation/{rubric,judge,report}.py` + `POST /sessions/{id}/evaluate` and `GET /sessions/{id}/report`. This is also where the **end-session affordance** lands (deferred from Phase 6 per ADR-029): `POST /evaluate` ends the session (mark completed + snapshot the final graph via the `serializer`) and runs the judge in one action. The judge reads the full transcript (`crud.get_turns`) + the scenario rubric and produces a structured evaluation; the process-based rubric credits *asking* regardless of the patient's actual history.
+Phase 7 done — the system is functionally complete end to end (create → converse → evaluate). Begin Phase 8: Polish — a second authored scenario, RAG exercised across multiple specialties, edge cases, a README with setup instructions, and a demo recording. Functional gaps worth considering: completed sessions don't block further turns (the orchestrator doesn't check status), and there's no list/resume of past sessions — both fine for the MVP demo, candidates for polish.
+
+Note (run before demoing): confirm the live judge with `scripts/smoke_evaluation.py` (one Groq call) and the full app with `uv run uvicorn src.api.main:app --port 8000` + `uv run streamlit run frontend/app.py`. Run servers via `uv run` (or activate `.venv`) — a bare `uvicorn`/`streamlit` resolves to the system install, which lacks our deps.
 
 Note: the live agent path is **confirmed working** — `scripts/smoke_conversation.py` was run on 17-June-2026 and passed: live scenario generation (one validate-and-repair cycle) → 4 live agent turns (patient ×2, nurse, family) → 8 turns persisted, reveals tracked, trust read back/clamped. It makes real Gemini calls (generation + agent replies), so it costs free-tier quota and is excluded from the suite, like `scripts/smoke_generator.py`. The smoke test also surfaced one integration gap the fake-injected unit tests could not: the patient agent is parameterised by the patient's name, so the router is injected as a per-session `build_router(patient_name)` factory (ADR-029).
 

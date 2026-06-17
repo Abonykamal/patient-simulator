@@ -51,3 +51,13 @@ class TurnResponse(BaseModel):
     speaker: str  # patient | nurse | family
     content: str
     emotional_state: str
+
+
+class EvaluationResponse(BaseModel):
+    """Result of ``POST /evaluate`` and ``GET /report`` — the end-of-session grade."""
+
+    covered: list[str]  # topics the student asked about
+    missed: list[str]  # topics the student did not ask about
+    score: float  # 0–1 weighted coverage
+    clinical_reasoning_notes: str
+    full_report: str
