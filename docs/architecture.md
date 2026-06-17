@@ -56,8 +56,9 @@ subpackage is one layer:
 | RAG | `src/rag/` | Embedding, retrieval, scenario generation; ChromaDB | ✅ Phase 3 |
 | Agents | `src/agents/` | Patient / nurse / family agents + router | ✅ Phase 4 |
 | Memory | `src/memory/` | Per-agent context assembly: slice + rapport + recent turns; trust clamp | ✅ Phase 5 |
-| API | `src/api/` | FastAPI routes (thin) | 🚧 Phase 6 |
-| Frontend | `frontend/` | Streamlit UI (HTTP only) | 🚧 Phase 6 |
+| Conversation | `src/conversation/` | The per-turn orchestrator (`start_session`, `run_turn`): router → memory → agent → state → db | ✅ Phase 6 |
+| API | `src/api/` | FastAPI routes (thin) + lifespan-built singletons | ✅ Phase 6 |
+| Frontend | `frontend/` | Streamlit UI (HTTP only) | ✅ Phase 6 |
 | Evaluation | `src/evaluation/` | LLM-as-judge rubric scoring + report | 🚧 Phase 7 |
 
 **Dependency direction:** agents → LLM layer (never raw provider SDKs); routes →
@@ -211,9 +212,36 @@ Trust (C2, ADR-027): a persisted `trust_level` (0–3, baseline 1) is nudged by 
 bounded `rapport_delta` the patient emits in its own JSON; `only_if_trust_built`
 facts unlock at level 3. Persisted per patient turn for the Phase 7 trajectory.
 
-## 9. API & Frontend — 🚧 To be filled in (Phase 6)
+## 9. Conversation, API & Frontend (✅ Phase 6)
 
-_FastAPI routes (sessions, conversation, evaluation) and the Streamlit UI._
+**Orchestrator** (`src/conversation/orchestrator.py`) — the per-turn glue, pure and
+injected so it unit-tests with fakes and no network. `start_session` generates a
+patient (RAG) and stores the *full* scenario in `patient_profile_json`. `run_turn`
+rebuilds the state graph from the stored scenario + the per-turn reveal log
+(rebuild-from-turns / event sourcing, ADR-030), reads current trust from the last
+patient turn, resolves the agent (router), builds *its* context (memory), calls it
+(the live LLM), applies `mark_revealed` + the rapport nudge, then persists the
+student + agent turns. The LLM call runs **before** any write, so a failed turn
+leaves zero partial state and is retry-safe (ADR-029).
+
+**API** (`src/api/`) — a thin FastAPI layer (CLAUDE.md). `main.py`'s lifespan builds
+the expensive singletons once (Retriever+corpus, agents, Router, generator) onto
+`app.state`; `deps.py` hands them to routes and is the single seam tests override
+with `dependency_overrides`. Routes (`sessions.py`, `conversation.py`) unpack the
+request, call the orchestrator, and shape the response; an agent/provider failure
+becomes a `503` and an unknown session a `404`. `schemas.py` holds the
+request/response models — `TurnResponse` omits `revealed_nodes` (the student must
+not see what they surfaced).
+
+**Frontend** (`frontend/app.py`) — Streamlit, HTTP only, never imports `src/`. A
+scenario picker starts a session; the transcript is kept client-side; a `Talking
+to` dropdown selects the recipient explicitly (three people, no Auto-detect —
+ADR-031). Endpoints used: `POST /sessions`, `GET /sessions/{id}`, `POST
+/sessions/{id}/turns`.
+
+The evaluate/report endpoints and the end-session affordance are deferred to
+Phase 7 (ADR-029). The live agent path is exercised by the hand-run
+`scripts/smoke_conversation.py`.
 
 ## 10. Evaluation Layer — 🚧 To be filled in (Phase 7)
 
@@ -226,17 +254,18 @@ no fallback (fail loudly)._
 
 ### Session start
 ```
-scenario type → RAG retrieve + generate patient JSON → schema validate
-            → builder.build_graph → in-memory PatientStateGraph
+scenario type → orchestrator.start_session → RAG retrieve + generate patient JSON
+            → schema validate → full scenario stored in patient_profile_json
             → SQLite session row → Streamlit renders intro
 ```
 
 ### Conversation turn
 ```
-student message (optionally addressed) → router resolves speaker
-   → memory builds context (per-agent slice + rapport + last N turns; persona added by the agent)
-   → llm.complete(agent, prompt) → agent returns {response_text, revealed_nodes, emotional_state}
-   → graph.mark_revealed(revealed_nodes) → turn saved to SQLite → response shown
+student message (+ explicit recipient) → orchestrator.run_turn
+   → rebuild graph from stored scenario + reveal log (ADR-030); read current trust
+   → router resolves agent → memory builds its context (slice + rapport + last N turns)
+   → agent.respond → live LLM → {response_text, revealed_nodes, emotional_state, rapport_delta}
+   → graph.mark_revealed + trust nudge → student + agent turns saved to SQLite → reply shown
 ```
 
 ### Session end
@@ -256,9 +285,11 @@ end trigger → transcript from SQLite + rubric from scenario file
 - **ChromaDB** (`src/rag/`) — clinical-case embeddings, queried at session start
   for scenario generation. On-disk collection at `chroma_data/` (gitignored),
   embedded once from `src/rag/corpus/`; in-memory in tests (ADR-021).
-- **In-memory** — the live `PatientStateGraph` exists only during a session and
-  is snapshotted to SQLite at the end (lost on restart, acceptable for MVP;
-  ADR-003).
+- **No mid-session in-memory state** — the live `PatientStateGraph` is rebuilt each
+  turn from the stored scenario + the per-turn reveal log (rebuild-from-turns,
+  ADR-030, superseding the in-session-only approach of ADR-003), so the DB is the
+  single source of truth and the loop is stateless / restart-safe. The `serializer`
+  snapshots the final graph to SQLite at session end (Phase 7).
 
 ---
 
@@ -272,7 +303,15 @@ local embedder and an in-memory ChromaDB (both free and offline), and injects a
 fake LLM into the generator so the validate-and-repair loop is exercised with no
 provider call. The agents layer injects a fake `complete_fn` into each agent and
 the router, so personas, the repair loop, and routing are all tested without a
-real call. As of Phase 5: **124 unit tests**.
+real call. The conversation orchestrator is tested directly against in-memory
+SQLite with fake agents/router/generator (reveals replay, trust read-back/clamp,
+resolved-name threading, retry-safety on failure); the FastAPI routes get thin
+`TestClient` tests with `dependency_overrides` (happy path + 503/404 shapes), so
+the HTTP seam is covered without building the real singletons. As of Phase 6:
+**139 unit tests**.
 
-> **🚧 To be filled in:** integration-test strategy once a live provider path
-> and the end-to-end conversation loop exist (Phase 6).
+The two live paths are covered only by hand-run smoke scripts excluded from the
+suite — `scripts/smoke_generator.py` (RAG → generator) and
+`scripts/smoke_conversation.py` (the full loop with live agents). A dedicated
+automated integration suite remains deferred; the smoke scripts are the
+deliberate, manual exception.

@@ -7,6 +7,15 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
+### 2026-06-17 — Phase 6: Full Conversation Loop complete (139 unit tests total, +15)
+- `src/conversation/orchestrator.py` — the per-turn loop, pure and injected: `start_session` (RAG generate → persist full scenario) and `run_turn` (router → memory context → agent LLM → `mark_revealed` → trust nudge → persist). **Rebuild-from-turns** lifecycle (the turns are the event log, the graph a projection — ADR-030); trust read back from the last patient turn and clamped; writes ordered **after** the LLM call so a failed turn is retry-safe (ADR-029)
+- `src/api/` — thin FastAPI layer (CLAUDE.md): `schemas.py` (request/response; `TurnResponse` omits `revealed_nodes` — internal-only), `deps.py` (the `dependency_overrides` seam), `routes/sessions.py` (`POST /sessions`, `GET /sessions/{id}`), `routes/conversation.py` (`POST /sessions/{id}/turns`), `main.py` (app + lifespan building the singletons onto `app.state`). Errors map to 503 (provider/agent failure) / 404 (unknown session)
+- `frontend/app.py` — Streamlit UI: scenario picker → intro → explicit `Talking to` dropdown (three people, no Auto-detect — ADR-031) → client-side transcript; HTTP only, never imports `src/`
+- `scripts/smoke_conversation.py` — hand-run live test of the full loop (first real agent→Gemini call); excluded from the suite, like `smoke_generator.py`
+- No reviewed module edited — agents, memory, state, llm, db, rag all consumed as-is
+- Tooling: added `fastapi`, `uvicorn`, `streamlit`, `requests`; one narrow pytest `filterwarnings` for Starlette's TestClient httpx deprecation
+- ADRs 029–031 added (orchestrator/DI/error boundary, rebuild-from-turns lifecycle, explicit UI addressing)
+
 ### 2026-06-16 — Phase 5: Memory & Context complete (124 unit tests total, +20)
 - `src/memory/context_builder.py` — pure per-agent context renderer: slice *policy* (agent→categories, ADR-024/028) over the new `graph.facts()` *mechanism*, labelled blocks (state slice → patient-only rapport line → recent turns), `you`/`student` labelling, nurse `metadata` (vitals) surfaced; `HistoryTurn` value type so the layer never imports `db.models`
 - `src/memory/manager.py` — public API: per-agent thread-filtering (D2), windowing to the last `RECENT_EXCHANGES_N` exchanges (D6), and the `apply_rapport_delta` trust clamp (ADR-027); pure/I-O-free (typed injected inputs, no DB, no LLM)

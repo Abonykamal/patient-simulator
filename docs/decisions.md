@@ -641,5 +641,69 @@ ADR-024 fixed *what* each agent may see. Phase 5 must decide *where* that slicin
 
 ---
 
+## ADR-029: Conversation Orchestrator — Dedicated Module, Injected Collaborators, Error Boundary
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+Phase 6 wires the isolated components (router, memory, agents, state, db, generator) into a working per-turn loop behind a FastAPI layer. Two questions: where does the coordinating logic live, and how do live LLM failures stay from crashing a session.
+
+**Options considered:**
+- Put the loop in the FastAPI route handlers (matches the spec's file tree literally)
+- A dedicated `src/conversation/` module with `start_session` / `run_turn`, collaborators injected; routes stay thin
+
+**Decision:** A dedicated **`src/conversation/`** orchestrator (`start_session`, `run_turn`) with every collaborator injected. Routes are thin: unpack request → call orchestrator → shape response. The expensive singletons (Retriever+corpus, agents, Router, generator) are built once in `main.py`'s lifespan onto `app.state` and handed to routes via `api/deps.py`; tests override that seam with `app.dependency_overrides`. The risky LLM call happens **before any database write**, so a failure leaves zero partial state; routes map an agent/provider failure to a friendly **503** and an unknown session to **404**.
+
+**Reasoning:**
+Honors CLAUDE.md's "routes are thin, business logic in core modules": the orchestrator is pure and injected, so the whole loop unit-tests with fakes and no HTTP/network, while the routes need only a couple of thin seam tests. Ordering writes after the LLM call makes a failed turn retry-safe with no half-written turn polluting the thread or the Phase-7 transcript — which is exactly how CLAUDE.md's "never let a provider error crash a session" is realised here.
+
+**Consequences:**
+New `src/conversation/orchestrator.py`, `src/api/{main,deps,schemas}.py`, `src/api/routes/{sessions,conversation}.py`. No reviewed module was edited — everything is consumed as-is. `TurnResponse` deliberately omits `revealed_nodes` (the student must not see what they did/didn't surface). Pairs with ADR-030/ADR-031.
+
+---
+
+## ADR-030: State Graph Lifecycle — Rebuild from Turns (Event Sourcing)
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The state graph is stateful (it accumulates `revealed` flags; trust climbs), but the API is stateless — each turn is an independent HTTP request. The graph mutated in turn 1 must be reconstituted when turn 5 arrives.
+
+**Options considered:**
+- In-memory process cache (`dict[session_id → graph]`)
+- Snapshot the graph to `state_snapshot_json` every turn; load/mutate/save
+- Rebuild the graph each turn from the stored scenario + the per-turn reveal log (event sourcing)
+
+**Decision:** **Rebuild from turns.** Each turn: `build_graph(Scenario(**patient_profile_json))`, then replay `mark_revealed` over every prior turn's `revealed_nodes_json`. The persisted turns are the event log; the graph is a projection. Nothing extra is stored.
+
+**Reasoning:**
+The DB stays the single source of truth — no second copy of the revealed state to drift, no cache to invalidate, naturally restart-safe and stateless. The same hallucination-safe `mark_revealed` guard runs on replay as on the live turn, so the rebuilt state is exactly what the session produced. The cost (rebuild + a short replay) is trivial at ~16 nodes and a handful of turns. The in-memory cache was rejected as hidden global state that dies on restart and breaks with >1 worker; the per-turn snapshot was rejected for storing derived state that can drift from the turn log.
+
+**Consequences:**
+`start_session` stores the **full** scenario in `patient_profile_json` so the structure can be rebuilt. The `serializer` is not needed mid-session; it remains for the Phase-7 end-of-session snapshot. `_current_trust` likewise reads the last patient turn's `trust_level` (else baseline) from the same turn log (ADR-027). Pairs with ADR-029.
+
+---
+
+## ADR-031: Explicit Addressing in the UI — Classifier Built but Not Surfaced
+**Date:** June 2026
+**Status:** Accepted (refines ADR-025)
+
+**Context:**
+ADR-025 made the router default unaddressed→patient for free and classify only on the `AUTO` sentinel. Phase 6's UI must decide how the student picks a recipient, and whether to expose the classifier.
+
+**Options considered:**
+- Dropdown of three people (Patient/Nurse/Family), default Patient — never send `AUTO`
+- Add an "Auto-detect" option that sends `AUTO` and runs the classifier
+
+**Decision:** **Three people only**, default Patient. The UI never sends `AUTO`. The classifier stays built and unit-tested but unused by the app.
+
+**Reasoning:**
+Product clarity over feature-showcasing: the student only cares that the right person answers, and a people-picker shouldn't mix in a meta-option ("let the system decide"). Keeping addressing explicit is deterministic and costs zero classifier calls, honoring ADR-025's budget intent. The classifier remains available for a future natural-language-addressing UI without any code change.
+
+**Consequences:**
+`frontend/app.py` exposes a `Talking to` selectbox; the orchestrator passes `addressed_to` straight through and persists the **resolved** agent name on the student turn (so per-agent threading, ADR-026, attributes it correctly even if a future caller does send `AUTO`). Pairs with ADR-025/ADR-029.
+
+---
+
 *New decisions will be added here as the project is built.*
 *Each entry should take ~5 minutes to write. Date it, describe the context, log the options you considered, and record why you chose what you chose.*

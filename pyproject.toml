@@ -18,6 +18,10 @@ dependencies = [
     # clinical associations). Library mode, no server.
     "networkx>=3.0",
     "chromadb>=0.5",
+    "fastapi>=0.137.1",
+    "uvicorn>=0.49.0",
+    "streamlit>=1.58.0",
+    "requests>=2.34.2",
 ]
 
 [dependency-groups]
@@ -32,6 +36,9 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # auto: async test functions run without a per-test @pytest.mark.asyncio marker.
 asyncio_mode = "auto"
+# Silence one third-party deprecation from Starlette's TestClient (it wants the
+# unreleased httpx2); not our code, and we keep test output pristine.
+filterwarnings = ["ignore:Using `httpx` with:Warning"]
 
 [tool.ruff]
 line-length = 100

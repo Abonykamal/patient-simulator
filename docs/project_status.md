@@ -1,8 +1,8 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 5 (Memory & Context) complete — 124 unit tests passing
-**Last updated:** 16-June-2026
+**Phase:** Phase 6 (Full Conversation Loop) complete — 139 unit tests passing
+**Last updated:** 17-June-2026
 
 ---
 
@@ -56,11 +56,16 @@
 - [x] Prereqs: `graph.facts()` accessor, `AgentResponse.rapport_delta` + `_json_fields`, patient persona rapport additions, `trust_level`/`addressed_to` columns, config tunables (+10 unit tests)
 
 ### Phase 6: Full Conversation Loop (Day 4)
-- [ ] `src/api/routes/sessions.py`
-- [ ] `src/api/routes/conversation.py`
-- [ ] `src/api/main.py`
-- [ ] `frontend/app.py` — Streamlit UI
-- [ ] End-to-end conversation working
+- [x] `src/conversation/orchestrator.py` — `start_session` + `run_turn`: the pure injected loop (router → memory → agent → state → db); rebuild-from-turns lifecycle, trust read-back/clamp, writes-after-LLM-call (ADR-029/030; 8 unit tests)
+- [x] `src/api/schemas.py` — request/response models; `TurnResponse` omits `revealed_nodes` (internal-only)
+- [x] `src/api/deps.py` — `Depends` providers (the single `dependency_overrides` seam for tests)
+- [x] `src/api/routes/sessions.py` — `POST /sessions`, `GET /sessions/{id}` (thin; 503/404 mapping)
+- [x] `src/api/routes/conversation.py` — `POST /sessions/{id}/turns` (thin; 503/404 mapping)
+- [x] `src/api/main.py` — FastAPI app + lifespan building the singletons (Retriever+corpus, agents, Router, generator) onto `app.state`
+- [x] Thin route tests via `TestClient` + `dependency_overrides` (7 unit tests)
+- [x] `frontend/app.py` — Streamlit UI: scenario picker → intro → `Talking to` dropdown (explicit, three people) → client-side transcript; HTTP only, never imports `src/`
+- [x] `scripts/smoke_conversation.py` — hand-run live test of the full loop (first real agent→Gemini call); excluded from the suite
+- [x] Tooling: added `fastapi`, `uvicorn`, `streamlit`, `requests`; one narrow pytest `filterwarnings` for Starlette's TestClient
 
 ### Phase 7: Evaluation (Day 5-6)
 - [ ] `src/evaluation/rubric.py`
@@ -78,11 +83,11 @@
 ---
 
 ## What's Next
-Phase 5 done. Begin Phase 6: Full Conversation Loop — the orchestrator (`src/api/`) that wires router → memory → agent per turn: resolve the agent, map `crud` turns to `HistoryTurn`s, `manager.build_context(...)`, `agent.respond(...)`, `graph.mark_revealed(...)`, `apply_rapport_delta` for the patient, then persist the student + agent turns (`addressed_to`, `trust_level`). This is where the **first live agent→provider call** happens — worth a manual smoke test once the loop exists, the way `scripts/smoke_generator.py` proved the generator path.
+Phase 6 done. Begin Phase 7: Evaluation — the LLM-as-judge that runs at session end. `src/evaluation/{rubric,judge,report}.py` + `POST /sessions/{id}/evaluate` and `GET /sessions/{id}/report`. This is also where the **end-session affordance** lands (deferred from Phase 6 per ADR-029): `POST /evaluate` ends the session (mark completed + snapshot the final graph via the `serializer`) and runs the judge in one action. The judge reads the full transcript (`crud.get_turns`) + the scenario rubric and produces a structured evaluation; the process-based rubric credits *asking* regardless of the patient's actual history.
 
-Note: the agents are unit-tested with an injected fake LLM, so **no real agent→provider call has happened yet**. The first live agent call (and a useful smoke test) comes when an agent runs against a real context built from a graph — worth doing early in Phase 5 once `context_builder` exists. Phase 3's `scripts/smoke_generator.py` already proved the live generator path.
+Note: run `scripts/smoke_conversation.py` by hand to confirm the live agent path (it makes real Gemini calls — generation + agent replies — so it costs free-tier quota and is excluded from the suite, like `scripts/smoke_generator.py`). The first live agent→provider call happens there.
 
-Note: the LLM providers' live network path **is now exercised** by `scripts/smoke_generator.py` — a manual smoke test (excluded from the pytest suite) that runs the real chain end-to-end: corpus → embed → ChromaDB retrieve → `scenario_generator` LLM → schema-validate → build graph. It confirmed the `gemini-3.1-flash-lite` model works against live credentials. Automated tests still make **no** real provider calls (the generator is unit-tested with an injected fake LLM); the smoke script is the deliberate, hand-run exception.
+Note: the live network path is exercised only by the two hand-run smoke scripts — `scripts/smoke_generator.py` (corpus → embed → retrieve → `scenario_generator` LLM → schema-validate → graph) and `scripts/smoke_conversation.py` (full loop: `start_session` → `run_turn` × N with live agents). Automated tests still make **no** real provider calls — every LLM collaborator is injected/faked; the smoke scripts are the deliberate, hand-run exceptions.
 
 Embedding model note: the ONNX `all-MiniLM-L6-v2` (~80 MB) downloads once on first embed to `~/.cache/chroma`, then runs offline. ChromaDB's persistent store lives at `chroma_data/` (gitignored).
 
