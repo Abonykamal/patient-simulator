@@ -65,7 +65,7 @@ class ScenarioNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str  # stable handle the agent's revealed_nodes[] refers to
-    label: str  # short speakable text ("crushing chest pain")
+    label: str  # short speakable text the patient says ("crushing chest pain")
     category: NodeCategory
     revealed: bool = False
     importance: Importance = "relevant"

@@ -16,7 +16,7 @@ reply, feedback names strongest coverage + highest-priority gaps, valid JSON onl
 from __future__ import annotations
 
 import json
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Literal
 
 from pydantic import BaseModel, ValidationError
 
@@ -34,10 +34,14 @@ class JudgeError(RuntimeError):
 
 
 class ItemVerdict(BaseModel):
-    """The judge's call on one rubric item: was this topic asked about?"""
+    """The judge's call on one rubric item.
+
+    ``not_applicable`` is for items that aren't real questions to the patient
+    (findings, vitals, observed behaviour); they are excluded from the grade.
+    """
 
     id: str
-    asked: bool
+    verdict: Literal["asked", "not_asked", "not_applicable"]
 
 
 class JudgeVerdict(BaseModel):
@@ -76,14 +80,20 @@ TRANSCRIPT — the encounter. Grade ONLY lines labelled "student:"; the other li
 are context:
 {transcript}
 
-For every rubric item decide whether the student asked about it. Then write 2-4
-sentences of clinical-reasoning feedback naming (1) the student's strongest areas
-of coverage and (2) the highest-priority topics missed — prioritise items marked
-"critical". Be specific and constructive.
+For every rubric item, give ONE verdict:
+  - "asked"          : the student explicitly raised this topic
+  - "not_asked"      : an askable topic the student did not raise
+  - "not_applicable" : NOT a question to the patient — an objective finding, vital
+                       sign, exam result, or a behaviour only observed (e.g. the
+                       patient downplaying symptoms). Not history-taking; excluded
+                       from the grade.
+Then write 2-4 sentences of clinical-reasoning feedback naming (1) the student's
+strongest areas of coverage and (2) the highest-priority topics missed — prioritise
+items marked "critical". Be specific and constructive.
 
 Output VALID JSON ONLY — no markdown, no code fences, no extra keys. Use exactly
 this shape, one entry per rubric item, with the ids above:
-{"items": [{"id": "<rubric id>", "asked": true or false}], "clinical_reasoning_notes": "<2-4 sentences>"}"""
+{"items": [{"id": "<rubric id>", "verdict": "asked" | "not_asked" | "not_applicable"}], "clinical_reasoning_notes": "<2-4 sentences>"}"""
 
 
 class Judge:

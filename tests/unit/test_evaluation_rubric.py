@@ -1,4 +1,9 @@
-"""Tests for src.evaluation.rubric — scenario nodes → gradeable rubric items (D1)."""
+"""Tests for src.evaluation.rubric — clinically-weighted nodes → rubric items.
+
+Only ``critical``/``relevant`` nodes are graded; ``minor`` incidental colour is
+excluded. Whether a kept item is actually an askable question (vs a finding) is
+decided downstream by the judge, not here (ADR-032).
+"""
 
 from scenarios.schema import Scenario
 from src.evaluation.rubric import RubricItem, build_rubric
@@ -14,7 +19,7 @@ def _scenario(nodes) -> Scenario:
     )
 
 
-def test_build_rubric_maps_each_node_to_an_item_preserving_order():
+def test_build_rubric_keeps_critical_and_relevant_in_order():
     sc = _scenario(
         [
             {
@@ -29,19 +34,33 @@ def test_build_rubric_maps_each_node_to_an_item_preserving_order():
                 "category": "history",
                 "importance": "relevant",
             },
-            {
-                "id": "soc_job",
-                "label": "works as an accountant",
-                "category": "social",
-                "importance": "minor",
-            },
         ]
     )
     assert build_rubric(sc) == [
         RubricItem(id="sym_pain", topic="chest pain", importance="critical"),
         RubricItem(id="hist_smoke", topic="smoking history", importance="relevant"),
-        RubricItem(id="soc_job", topic="works as an accountant", importance="minor"),
     ]
+
+
+def test_build_rubric_excludes_minor_incidental_nodes():
+    # Minor "incidental colour" stays in the graph for realism but isn't graded.
+    sc = _scenario(
+        [
+            {
+                "id": "sym_pain",
+                "label": "chest pain",
+                "category": "symptom",
+                "importance": "critical",
+            },
+            {
+                "id": "soc_job",
+                "label": "works as a hairdresser",
+                "category": "social",
+                "importance": "minor",
+            },
+        ]
+    )
+    assert [item.id for item in build_rubric(sc)] == ["sym_pain"]
 
 
 def test_build_rubric_uses_schema_default_importance():

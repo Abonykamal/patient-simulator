@@ -249,17 +249,20 @@ Phase 7 (ADR-029). The live agent path is exercised by the hand-run
 
 The end-of-session LLM-as-judge (ADR-032). Four small modules + a coordinator:
 
-- **`rubric.py`** — `build_rubric(scenario)` turns each node into a `RubricItem`
-  (topic = label, weight = `importance`). The rubric is *derived*, not authored —
-  consuming the `importance` field ADR-017 carried for exactly this.
+- **`rubric.py`** — `build_rubric(scenario)` turns each `critical`/`relevant` node
+  into a `RubricItem` (topic = label, weight = `importance`); `minor` incidental
+  facts are excluded. The rubric is *derived*, not authored — consuming the
+  `importance` field ADR-017 carried for exactly this.
 - **`judge.py`** — the LLM-as-judge (`agent_name="judge"` → Groq/Llama, **no
   fallback**). The approved **process-based** prompt grades *asking* not answers:
   an item is "asked" only with an explicit student utterance (incl. clinical
-  paraphrase), never inferred from the patient's reply. Returns per-item
-  asked/not-asked + a reasoning narrative; validate-and-repair; LLM injected.
-- **`report.py`** — pure: `score` = weighted coverage (`critical=3, relevant=2,
-  minor=1`), `format_report` wraps the narrative with the score + covered/missed.
-  The judge does judgement; code does the arithmetic (reproducible, testable).
+  paraphrase), never inferred from the patient's reply. Returns a per-item verdict
+  of `asked` / `not_asked` / `not_applicable` (the last for findings/observations
+  that aren't real questions) + a reasoning narrative; validate-and-repair; injected.
+- **`report.py`** — pure: `score` = weighted coverage (`critical=3, relevant=2`),
+  dropping `not_applicable` items from the denominator; `format_report` wraps the
+  narrative with the score + covered/missed. The judge judges; code does the
+  arithmetic (reproducible, testable).
 - **`evaluator.py`** — `evaluate_session(db, judge, id)`: idempotent (returns an
   existing evaluation, no re-judge) → build rubric → render transcript → judge →
   score+format → mark session `completed` → save. The judge call runs before any
@@ -294,7 +297,7 @@ student message (+ explicit recipient) → orchestrator.run_turn
 ```
 POST /evaluate → evaluator.evaluate_session (idempotent)
           → build_rubric(scenario) + transcript from SQLite
-          → judge LLM (Groq, no fallback) → per-item asked/not-asked + notes
+          → judge LLM (Groq, no fallback) → per-item asked/not_asked/not_applicable + notes
           → report.score (weighted coverage) + format_report
           → mark session completed (no snapshot, ADR-030) → save_evaluation → report rendered
 ```
@@ -336,7 +339,7 @@ resolved-name threading, retry-safety on failure); the FastAPI routes get thin
 the HTTP seam is covered without building the real singletons. The evaluation layer
 follows the same pattern: rubric/report are pure (direct tests), the judge and the
 `evaluate_session` coordinator use a fake judge over in-memory SQLite (scoring,
-idempotency, fail paths). As of Phase 7: **159 unit tests**.
+idempotency, fail paths). As of Phase 8 (in progress): **161 unit tests**.
 
 The three live paths are covered only by hand-run smoke scripts excluded from the
 suite — `scripts/smoke_generator.py` (RAG → generator),

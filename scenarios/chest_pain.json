@@ -2,7 +2,7 @@
   "scenario_id": "chest_pain",
   "scenario_name": "Acute Chest Pain",
   "patient_name": "John Doe",
-  "scenario_intro": "A 58-year-old man is brought into the emergency department clutching his chest. He looks pale and frightened. He is able to speak in short sentences.",
+  "scenario_intro": "John Doe, 58, presents with chest pain.",
   "nodes": [
     {
       "id": "chest_pain",

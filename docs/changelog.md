@@ -7,6 +7,13 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
+### 2026-06-18 — Phase 8: evaluation quality fixes from live runs (161 unit tests total, +2)
+- Driving the app surfaced rubric-quality issues the fake-injected tests couldn't (see ADR-032 Refinements):
+- `src/evaluation/rubric.py` — grade only `critical`/`relevant` nodes; `minor` incidental colour ("hairdresser", "lives alone") stays in the graph but is no longer graded (category filtering rejected — `social` holds both "smoker" and "hairdresser")
+- `src/evaluation/judge.py` / `report.py` — judge verdict is now `asked`/`not_asked`/**`not_applicable`**; `not_applicable` (objective findings, vitals, observed behaviour like "downplaying symptoms") is dropped from the score's denominator. Askability is decided by the judge, not a generator field (a prototyped `probe` node-field was reverted as generator-biasing/over-engineered)
+- `src/rag/generator.py` — `scenario_intro` instruction now requires a name/age/presenting-complaint **door-stem** (schematic form, no concrete example) so the intro stops leaking history the student should elicit
+- Generation variety **tabled** (corpus has only 2–4 cases/category) — not needed for the portfolio/MVP goal; structured input parameterisation recorded as the future lever
+
 ### 2026-06-17 — Phase 7: Evaluation complete (159 unit tests total, +20)
 - `src/evaluation/rubric.py` — `build_rubric(scenario)`: derives the grading rubric from the scenario's nodes (topic + `importance`), consuming the field ADR-017 carried for exactly this; no schema change
 - `src/evaluation/judge.py` — the LLM-as-judge (`agent_name="judge"` → Groq/Llama, no fallback): the approved **process-based** prompt (grade asking not answers; "asked" needs an explicit student utterance incl. clinical paraphrase; never infer from the patient's reply), classifies each item asked/not-asked + a reasoning narrative, validate-and-repair, LLM injected

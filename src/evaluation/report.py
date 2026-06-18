@@ -25,29 +25,35 @@ class ScoredResult(BaseModel):
     missed: list[str]  # topic labels the student did not ask about
 
 
-def score(asked_by_id: dict[str, bool], rubric_items: list[RubricItem]) -> ScoredResult:
+def score(verdicts: dict[str, str], rubric_items: list[RubricItem]) -> ScoredResult:
     """Compute weighted coverage from the judge's per-item verdicts.
 
     Args:
-        asked_by_id: ``{rubric item id: asked}`` from the judge. A rubric item the
-            judge omitted is treated as not asked (missed), never dropped.
+        verdicts: ``{rubric item id: verdict}`` from the judge, where verdict is
+            ``"asked"`` | ``"not_asked"`` | ``"not_applicable"``. A ``not_applicable``
+            item (a finding/observation that isn't a real question) is dropped from
+            coverage AND from the denominator. A rubric item the judge omitted is
+            treated as ``not_asked`` (missed), never silently dropped.
         rubric_items: the rubric being graded against.
 
     Returns:
         A :class:`ScoredResult`; ``overall_score`` is Σ(weight of asked) ÷ Σ(weight
-        of all), rounded to 2 dp, and 0.0 when the rubric is empty.
+        of applicable), rounded to 2 dp, and 0.0 when nothing applicable remains.
     """
     covered: list[str] = []
     missed: list[str] = []
     earned = 0
     total = 0
     for item in rubric_items:
+        verdict = verdicts.get(item.id, "not_asked")
+        if verdict == "not_applicable":
+            continue  # not a question to the patient — excluded from grading entirely
         weight = _WEIGHTS.get(item.importance, 1)
         total += weight
-        if asked_by_id.get(item.id, False):
+        if verdict == "asked":
             covered.append(item.topic)
             earned += weight
-        else:
+        else:  # not_asked (or an omitted item)
             missed.append(item.topic)
     overall = round(earned / total, 2) if total else 0.0
     return ScoredResult(overall_score=overall, covered=covered, missed=missed)

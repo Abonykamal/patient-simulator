@@ -58,7 +58,10 @@ async def _seed(db) -> str:
 async def test_evaluate_session_scores_persists_and_completes(db_session):
     session_id = await _seed(db_session)
     verdict = JudgeVerdict(
-        items=[ItemVerdict(id="sym_pain", asked=True), ItemVerdict(id="hist_smoke", asked=False)],
+        items=[
+            ItemVerdict(id="sym_pain", verdict="asked"),
+            ItemVerdict(id="hist_smoke", verdict="not_asked"),
+        ],
         clinical_reasoning_notes="Asked about pain; missed smoking history.",
     )
     judge = FakeJudge(verdict)
@@ -81,7 +84,9 @@ async def test_evaluate_session_scores_persists_and_completes(db_session):
 async def test_evaluate_session_is_idempotent(db_session):
     session_id = await _seed(db_session)
     judge = FakeJudge(
-        JudgeVerdict(items=[ItemVerdict(id="sym_pain", asked=True)], clinical_reasoning_notes="ok")
+        JudgeVerdict(
+            items=[ItemVerdict(id="sym_pain", verdict="asked")], clinical_reasoning_notes="ok"
+        )
     )
 
     first = await evaluate_session(db_session, judge, session_id)

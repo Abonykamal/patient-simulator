@@ -1,8 +1,8 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 7 (Evaluation) complete — 159 unit tests passing
-**Last updated:** 17-June-2026
+**Phase:** Phase 7 (Evaluation) complete; Phase 8 (Polish) underway — 161 unit tests passing
+**Last updated:** 18-June-2026
 
 ---
 
@@ -68,15 +68,16 @@
 - [x] Tooling: added `fastapi`, `uvicorn`, `streamlit`, `requests`; one narrow pytest `filterwarnings` for Starlette's TestClient
 
 ### Phase 7: Evaluation (Day 5-6)
-- [x] `src/evaluation/rubric.py` — `build_rubric(scenario)`: nodes → `RubricItem`s (topic + `importance` weight); derives the rubric, no schema field (ADR-032; 2 unit tests)
-- [x] `src/evaluation/judge.py` — the LLM-as-judge (Groq, no fallback): approved process-based prompt, classifies each item asked/not-asked + reasoning narrative, validate-and-repair, LLM injected (ADR-032; 4 unit tests)
-- [x] `src/evaluation/report.py` — pure: `score` (weighted coverage, 3/2/1) + `format_report`; judgement is the LLM's, arithmetic is code's (ADR-032; 6 unit tests)
+- [x] `src/evaluation/rubric.py` — `build_rubric(scenario)`: `critical`/`relevant` nodes → `RubricItem`s (`minor` excluded); derives the rubric, no schema field (ADR-032; 3 unit tests)
+- [x] `src/evaluation/judge.py` — the LLM-as-judge (Groq, no fallback): approved process-based prompt, classifies each item `asked`/`not_asked`/`not_applicable` + reasoning narrative, validate-and-repair, LLM injected (ADR-032; 4 unit tests)
+- [x] `src/evaluation/report.py` — pure: `score` (weighted coverage 3/2/1, `not_applicable` dropped from denominator) + `format_report`; judgement is the LLM's, arithmetic is code's (ADR-032; 7 unit tests)
 - [x] `src/evaluation/evaluator.py` — `evaluate_session`: idempotent → build rubric → judge → score+format → end session (no snapshot, D6) → save; judge injected (ADR-032; 3 unit tests)
 - [x] `src/api/routes/evaluation.py` — `POST /sessions/{id}/evaluate` (ends+judges+saves; 404/503 fail-loud) + `GET /sessions/{id}/report`; `EvaluationResponse`, `get_judge` dep, judge singleton in lifespan (5 route tests)
 - [x] `frontend/app.py` — "End interview & get feedback" button → score + covered/missed + notes + full report
 - [x] `scripts/smoke_evaluation.py` — hand-run live judge over a seeded transcript (one Groq call)
 
 ### Phase 8: Polish (Day 7-8)
+- [x] Rubric/judge quality fixes from live runs: `minor`-importance filter; judge `not_applicable` for findings/observations; generator door-stem intro (no leaked history) — see ADR-032 Refinements
 - [ ] Second scenario file
 - [ ] RAG tested with multiple scenario types
 - [ ] Edge cases handled
@@ -86,7 +87,7 @@
 ---
 
 ## What's Next
-Phase 7 done — the system is functionally complete end to end (create → converse → evaluate). Begin Phase 8: Polish — a second authored scenario, RAG exercised across multiple specialties, edge cases, a README with setup instructions, and a demo recording. Functional gaps worth considering: completed sessions don't block further turns (the orchestrator doesn't check status), and there's no list/resume of past sessions — both fine for the MVP demo, candidates for polish.
+Phase 7 done; Phase 8 (Polish) underway — the system is functionally complete end to end (create → converse → evaluate) and has had a first round of live-run quality fixes (ADR-032 Refinements). Remaining Phase 8: a second authored scenario, RAG across multiple specialties, edge cases, a README, and a demo recording. Known, deliberately-deferred items: generation variety is **tabled** (only matters for a real product, not the portfolio MVP — structured input parameterisation is the recorded future lever); completed sessions don't block further turns; no list/resume of past sessions. The "generally healthy"-style answer-phrased labels are now handled by the judge's `not_applicable`/topic interpretation rather than a generator field.
 
 Note (run before demoing): confirm the live judge with `scripts/smoke_evaluation.py` (one Groq call) and the full app with `uv run uvicorn src.api.main:app --port 8000` + `uv run streamlit run frontend/app.py`. Run servers via `uv run` (or activate `.venv`) — a bare `uvicorn`/`streamlit` resolves to the system install, which lacks our deps.
 

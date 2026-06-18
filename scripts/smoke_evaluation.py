@@ -66,6 +66,12 @@ SCENARIO = Scenario(
             "category": "social",
             "importance": "minor",
         },
+        {
+            "id": "obs_vitals",
+            "label": "stable vital signs on arrival",
+            "category": "symptom",
+            "importance": "relevant",
+        },
     ],
 )
 

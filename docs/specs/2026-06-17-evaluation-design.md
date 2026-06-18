@@ -17,8 +17,8 @@ Additive: new `src/evaluation/`, one new route, small additions to `schemas`,
 
 | # | Decision | Rationale | ADR |
 |---|----------|-----------|-----|
-| D1 | The rubric is **derived from the scenario's nodes** (each node = a topic to have asked about; `importance` = its weight). No new schema field. | ADR-017 carried `importance` "because its consumer, the process-based rubric, lands in Phase 7"; every generated patient gets a rubric for free; no generator/authoring burden. | ADR-032 |
-| D2 | **Judge classifies, code scores.** The judge marks each rubric item asked/not-asked + writes a reasoning narrative; code computes `overall_score` = weighted coverage (`critical=3, relevant=2, minor=1`). | LLMs are unreliable at arithmetic/holistic numbers but good at "did they ask X?"; a code score is reproducible, defensible, and unit-testable. | ADR-032 |
+| D1 | The rubric is **derived from the scenario's nodes** (each node = a topic; `importance` = its weight). No new schema field. *Refined:* only `critical`/`relevant` nodes are graded — `minor` incidental colour is excluded. | ADR-017 carried `importance` for exactly this; every generated patient gets a rubric for free; `minor` trivia ("hairdresser") shouldn't be graded. | ADR-032 |
+| D2 | **Judge classifies, code scores.** The judge marks each rubric item `asked`/`not_asked`/`not_applicable` + a reasoning narrative; code computes `overall_score` = weighted coverage, **dropping `not_applicable`** from the denominator. | LLMs are good at "did they ask X?" and at spotting non-questions (findings/observations); a code score is reproducible and testable. `not_applicable` keeps askability off the generator. | ADR-032 |
 | D3 | A dedicated **`src/evaluation/evaluator.py`** coordinator (`evaluate_session`, judge injected), keeping the conversation orchestrator focused on the live loop. | Cohesion: rubric/judge/report concerns stay in `src/evaluation/`; conversation doesn't grow an evaluation dependency. | ADR-032 |
 | D4 | **`report.py` formats `full_report_text` in code** around the judge's narrative (score + covered/missed lists + notes). | Reproducible, testable, no extra LLM call; the model only writes the part that needs a model. | ADR-032 |
 | D5 | `POST /evaluate` is **idempotent** (returns the existing evaluation if present), **ends + judges + saves in one action**, and **fails loud** on judge error (`503`, no fallback). | Saves judge quota, retry-safe, can't overwrite a result; a degraded judge silently misleads, so unlike a turn it must fail loudly (AGENT_CONFIG). | ADR-032 |
@@ -49,14 +49,14 @@ highest-priority/critical gaps; valid-JSON-only). Full text in `judge.py`.
 ## Types & signatures
 
 ```python
-class RubricItem(BaseModel):       # rubric.py
+class RubricItem(BaseModel):       # rubric.py — built only from critical/relevant nodes
     id: str           # node id
     topic: str        # node label — the thing to have asked about
-    importance: str   # critical | relevant | minor
+    importance: str   # critical | relevant  (minor nodes are not graded)
 
 class ItemVerdict(BaseModel):      # judge.py
     id: str
-    asked: bool
+    verdict: Literal["asked", "not_asked", "not_applicable"]  # not_applicable = a finding, excluded
 
 class JudgeVerdict(BaseModel):     # judge.py — the judge's structured output
     items: list[ItemVerdict]

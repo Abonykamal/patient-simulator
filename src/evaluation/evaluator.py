@@ -56,8 +56,8 @@ async def evaluate_session(db, judge, session_id: str) -> Evaluation:
     # The risky LLM call — first, before any write; fails loud (no fallback).
     verdict = await judge.judge(rubric, transcript)
 
-    asked_by_id = {item.id: item.asked for item in verdict.items}
-    scored = report.score(asked_by_id, rubric)
+    verdicts = {item.id: item.verdict for item in verdict.items}
+    scored = report.score(verdicts, rubric)
     full_report = report.format_report(scored, verdict.clinical_reasoning_notes)
 
     # Mark the session completed (no graph snapshot — redundant under ADR-030, D6).

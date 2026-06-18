@@ -1,4 +1,9 @@
-"""Tests for src.evaluation.report — deterministic score + report text (D2/D4)."""
+"""Tests for src.evaluation.report — deterministic score + report text (D2/D4).
+
+The judge returns a per-item verdict of "asked" / "not_asked" / "not_applicable";
+``score`` weights coverage and drops ``not_applicable`` items (findings/observations
+that aren't real questions) from the denominator entirely (ADR-032).
+"""
 
 from src.evaluation.report import ScoredResult, format_report, score
 from src.evaluation.rubric import RubricItem
@@ -12,27 +17,37 @@ RUBRIC = [
 
 def test_score_is_weighted_coverage():
     # asked a (3) + c (1) = 4 of total weight 6 → 0.67; covered/missed are topics.
-    result = score({"a": True, "b": False, "c": True}, RUBRIC)
+    result = score({"a": "asked", "b": "not_asked", "c": "asked"}, RUBRIC)
     assert result.overall_score == 0.67
     assert result.covered == ["chest pain", "occupation"]
     assert result.missed == ["smoking history"]
 
 
 def test_score_all_asked_is_one():
-    result = score({"a": True, "b": True, "c": True}, RUBRIC)
+    result = score({"a": "asked", "b": "asked", "c": "asked"}, RUBRIC)
     assert result.overall_score == 1.0
     assert result.missed == []
 
 
 def test_score_none_asked_is_zero():
-    result = score({"a": False, "b": False, "c": False}, RUBRIC)
+    result = score({"a": "not_asked", "b": "not_asked", "c": "not_asked"}, RUBRIC)
     assert result.overall_score == 0.0
     assert result.covered == []
 
 
-def test_score_missing_verdict_id_counts_as_not_asked():
+def test_score_not_applicable_is_excluded_from_grading():
+    # b is a finding the judge marked not_applicable → dropped from covered, missed,
+    # AND the denominator. Score is over a (3) + c (1) only: asked a → 3/4 = 0.75.
+    result = score({"a": "asked", "b": "not_applicable", "c": "not_asked"}, RUBRIC)
+    assert result.overall_score == 0.75
+    assert "smoking history" not in result.covered + result.missed
+    assert result.covered == ["chest pain"]
+    assert result.missed == ["occupation"]
+
+
+def test_score_missing_verdict_counts_as_not_asked():
     # The judge omitted "b"; it must be treated as missed, not dropped.
-    result = score({"a": True, "c": True}, RUBRIC)
+    result = score({"a": "asked", "c": "asked"}, RUBRIC)
     assert "smoking history" in result.missed
 
 

@@ -88,9 +88,7 @@ class ScenarioGenerator:
         Raises:
             ScenarioGenerationError: if no valid scenario is produced in time.
         """
-        cases = self._retriever.query(
-            _render_query(request), category=request.category, k=self._k
-        )
+        cases = self._retriever.query(_render_query(request), category=request.category, k=self._k)
         prompt = _build_prompt(request, cases)
 
         last_error: Exception | None = None
@@ -114,8 +112,7 @@ class ScenarioGenerator:
                 prompt = _build_repair_prompt(request, cases, raw, exc)
 
         raise ScenarioGenerationError(
-            f"no valid scenario after {self._max_repairs + 1} attempts; "
-            f"last error: {last_error}"
+            f"no valid scenario after {self._max_repairs + 1} attempts; last error: {last_error}"
         )
 
 
@@ -143,7 +140,12 @@ Return ONLY a JSON object (no prose, no markdown) with these fields:
 - scenario_id: short snake_case string
 - scenario_name: short human title
 - patient_name: a plausible full name
-- scenario_intro: one or two sentences a student sees before the interview
+- scenario_intro: a one-sentence door-stem in the form
+  "<name>, <age>, presents with <presenting complaint>" — name, age, and the
+  presenting complaint ONLY. Do NOT add anything the student should elicit: no
+  duration/timeline, no recent events or risk factors, no past history, no
+  associated symptoms, no results. Everything beyond the chief complaint is for
+  the student to uncover.
 - nodes: a list of clinical facts (aim for 14 to 16, never fewer than 12; see
   requirements below). Each node has:
     - id: snake_case unique string
