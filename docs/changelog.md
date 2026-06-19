@@ -7,7 +7,8 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
-### 2026-06-19 — Phase 8: edge-case hardening + README (166 unit tests total, +5)
+### 2026-06-19 — Phase 8: edge-case hardening + cross-specialty RAG verification + README (166 unit tests total, +5)
+- `scripts/smoke_rag_specialties.py` — hand-run live check of the RAG → generation chain across **all 5 corpus specialties** (chest_pain, dyspnea, abdominal_pain, headache, leg_swelling); asserts the category metadata filter is a hard guarantee and the generated patients are distinct. Run 19-June-2026: every specialty retrieved-pinned, generated schema-valid on attempt 0, built a graph, and yielded a rubric — door-stem intros clean across the board (incidental: low *name* variety, consistent with the tabled generation-variety note)
 - `README.md` — portfolio-facing setup/architecture/usage doc (no Docker — there's no compose file and nothing needs a service; SQLite is a file, ChromaDB is local)
 - Edge cases handled (ADR-033): four out-of-order / malformed paths the happy-path API missed —
   - *Turn after the interview is graded* → `run_turn` raises `SessionClosedError` (`session.status == "completed"`), route maps to **409 Conflict**; the Streamlit input is hidden once a report exists, so the student never types into a 409

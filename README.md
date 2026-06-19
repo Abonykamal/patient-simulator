@@ -168,9 +168,10 @@ The live network paths are exercised only by three hand-run smoke scripts (each 
 real API calls, so they cost free-tier quota and are excluded from the suite):
 
 ```bash
-PYTHONPATH=. uv run python scripts/smoke_generator.py      # RAG → generate a scenario
-PYTHONPATH=. uv run python scripts/smoke_conversation.py   # full conversation loop
-PYTHONPATH=. uv run python scripts/smoke_evaluation.py      # the live judge
+PYTHONPATH=. uv run python scripts/smoke_generator.py        # RAG → generate a scenario
+PYTHONPATH=. uv run python scripts/smoke_rag_specialties.py  # RAG across all 5 specialties
+PYTHONPATH=. uv run python scripts/smoke_conversation.py     # full conversation loop
+PYTHONPATH=. uv run python scripts/smoke_evaluation.py        # the live judge
 ```
 
 ---

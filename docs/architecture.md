@@ -345,9 +345,10 @@ follows the same pattern: rubric/report are pure (direct tests), the judge and t
 idempotency, empty-interview short-circuit, fail paths). As of Phase 8 (in
 progress): **166 unit tests**.
 
-The three live paths are covered only by hand-run smoke scripts excluded from the
+The live paths are covered only by hand-run smoke scripts excluded from the
 suite — `scripts/smoke_generator.py` (RAG → generator),
-`scripts/smoke_conversation.py` (the full loop with live agents), and
-`scripts/smoke_evaluation.py` (the live judge). A dedicated
-automated integration suite remains deferred; the smoke scripts are the
+`scripts/smoke_rag_specialties.py` (RAG → generator across all 5 specialties, with
+category-filter and distinctness checks), `scripts/smoke_conversation.py` (the full
+loop with live agents), and `scripts/smoke_evaluation.py` (the live judge). A
+dedicated automated integration suite remains deferred; the smoke scripts are the
 deliberate, manual exception.
