@@ -165,6 +165,33 @@ def test_post_turn_agent_failure_returns_503(client, monkeypatch):
     assert r.status_code == 503
 
 
+def test_post_turn_completed_session_returns_409(client, monkeypatch):
+    from src.conversation.orchestrator import SessionClosedError
+
+    async def boom(*args, **kwargs):
+        raise SessionClosedError("ended")
+
+    monkeypatch.setattr(conv_routes.orchestrator, "run_turn", boom)
+
+    r = client.post("/sessions/sess-1/turns", json={"content": "More?", "addressed_to": "patient"})
+
+    assert r.status_code == 409
+
+
+def test_post_turn_empty_content_returns_422(client):
+    # Whitespace-only is rejected by the schema before any orchestrator/LLM work.
+    r = client.post("/sessions/sess-1/turns", json={"content": "   ", "addressed_to": "patient"})
+
+    assert r.status_code == 422
+
+
+def test_post_turn_invalid_addressed_to_returns_422(client):
+    # The recipient contract is strict (patient | nurse | family) — a bad value is a bug.
+    r = client.post("/sessions/sess-1/turns", json={"content": "Where?", "addressed_to": "doctor"})
+
+    assert r.status_code == 422
+
+
 # --- POST /sessions/{id}/evaluate & GET /sessions/{id}/report --------------------
 
 

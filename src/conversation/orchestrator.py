@@ -31,6 +31,16 @@ from src.state.builder import build_graph
 from src.state.graph import PatientStateGraph
 
 
+class SessionClosedError(Exception):
+    """Raised when a turn is attempted on a session that has already been graded.
+
+    A completed session's transcript is what the judge scored; letting it grow
+    afterwards would silently desync the report from the conversation. The route
+    maps this to HTTP 409 Conflict — the request is well-formed and the session
+    exists, but it conflicts with the session's lifecycle state (ADR-033).
+    """
+
+
 class TurnResult(NamedTuple):
     """What one turn produced — mapped by the route to ``schemas.TurnResponse``.
 
@@ -106,12 +116,17 @@ async def run_turn(
 
     Raises:
         LookupError: if ``session_id`` does not exist.
+        SessionClosedError: if the session has already been graded (completed).
         Exception: any LLM/agent failure propagates *before* anything is written,
             so the turn is retry-safe (D5).
     """
     session = await crud.get_session(db, session_id)
     if session is None:
         raise LookupError(f"unknown session: {session_id}")
+    if session.status == "completed":
+        # The interview has been graded; reject further turns before any work so the
+        # graded transcript can't drift from the conversation (ADR-033).
+        raise SessionClosedError(f"session already ended: {session_id}")
 
     # 1. Reconstitute session state from the DB (the source of truth).
     scenario = Scenario.model_validate(session.patient_profile_json)

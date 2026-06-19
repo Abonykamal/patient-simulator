@@ -231,9 +231,11 @@ the expensive singletons once (Retriever+corpus, agents, Router, generator) onto
 `app.state`; `deps.py` hands them to routes and is the single seam tests override
 with `dependency_overrides`. Routes (`sessions.py`, `conversation.py`) unpack the
 request, call the orchestrator, and shape the response; an agent/provider failure
-becomes a `503` and an unknown session a `404`. `schemas.py` holds the
-request/response models — `TurnResponse` omits `revealed_nodes` (the student must
-not see what they surfaced).
+becomes a `503`, an unknown session a `404`, a turn on an already-graded session a
+`409` (ADR-033). `schemas.py` holds the request/response models — `TurnResponse`
+omits `revealed_nodes` (the student must not see what they surfaced); `TurnRequest`
+rejects a blank `content` and any `addressed_to` outside patient/nurse/family with
+a `422`, before any LLM work (ADR-033).
 
 **Frontend** (`frontend/app.py`) — Streamlit, HTTP only, never imports `src/`. A
 scenario picker starts a session; the transcript is kept client-side; a `Talking
@@ -334,12 +336,14 @@ provider call. The agents layer injects a fake `complete_fn` into each agent and
 the router, so personas, the repair loop, and routing are all tested without a
 real call. The conversation orchestrator is tested directly against in-memory
 SQLite with fake agents/router/generator (reveals replay, trust read-back/clamp,
-resolved-name threading, retry-safety on failure); the FastAPI routes get thin
-`TestClient` tests with `dependency_overrides` (happy path + 503/404 shapes), so
+resolved-name threading, retry-safety on failure, refusing a completed session); the
+FastAPI routes get thin `TestClient` tests with `dependency_overrides` (happy path +
+404/409/422/503 shapes), so
 the HTTP seam is covered without building the real singletons. The evaluation layer
 follows the same pattern: rubric/report are pure (direct tests), the judge and the
 `evaluate_session` coordinator use a fake judge over in-memory SQLite (scoring,
-idempotency, fail paths). As of Phase 8 (in progress): **161 unit tests**.
+idempotency, empty-interview short-circuit, fail paths). As of Phase 8 (in
+progress): **166 unit tests**.
 
 The three live paths are covered only by hand-run smoke scripts excluded from the
 suite — `scripts/smoke_generator.py` (RAG → generator),

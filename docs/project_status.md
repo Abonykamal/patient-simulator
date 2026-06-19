@@ -1,8 +1,8 @@
 # Project Status
 
 ## Current State
-**Phase:** Phase 7 (Evaluation) complete; Phase 8 (Polish) underway — 161 unit tests passing
-**Last updated:** 18-June-2026
+**Phase:** Phase 7 (Evaluation) complete; Phase 8 (Polish) underway — 166 unit tests passing
+**Last updated:** 19-June-2026
 
 ---
 
@@ -80,14 +80,14 @@
 - [x] Rubric/judge quality fixes from live runs: `minor`-importance filter; judge `not_applicable` for findings/observations; generator door-stem intro (no leaked history) — see ADR-032 Refinements
 - [ ] Second scenario file
 - [ ] RAG tested with multiple scenario types
-- [ ] Edge cases handled
-- [ ] README with setup instructions
+- [x] Edge cases handled (ADR-033): completed-session turn → `SessionClosedError`/**409** (+ UI hides input); blank `content` and non-`{patient,nurse,family}` `addressed_to` → **422** at the schema; empty interview → 0% report with **no judge call** (+5 unit tests)
+- [x] `README.md` — portfolio-facing: what it is + what it demonstrates, layered architecture + data-flow, tech stack, setup (`uv sync` + keys), run, use, test, structure, design notes/limitations
 - [ ] Demo recording
 
 ---
 
 ## What's Next
-Phase 7 done; Phase 8 (Polish) underway — the system is functionally complete end to end (create → converse → evaluate) and has had a first round of live-run quality fixes (ADR-032 Refinements). Remaining Phase 8: a second authored scenario, RAG across multiple specialties, edge cases, a README, and a demo recording. Known, deliberately-deferred items: generation variety is **tabled** (only matters for a real product, not the portfolio MVP — structured input parameterisation is the recorded future lever); completed sessions don't block further turns; no list/resume of past sessions. The "generally healthy"-style answer-phrased labels are now handled by the judge's `not_applicable`/topic interpretation rather than a generator field.
+Phase 7 done; Phase 8 (Polish) underway — the system is functionally complete end to end (create → converse → evaluate), has had a first round of live-run quality fixes (ADR-032 Refinements), and is now edge-case hardened (ADR-033) with a portfolio README. Remaining Phase 8: RAG exercised across multiple specialties, and an optional demo recording. The "second authored scenario file" is **dropped** as low-value: the app always generates dynamically and already supports all five presentation types, and authored scenario JSONs are never served (only `chest_pain.json` exists, as a test fixture) — a second one would only matter if we added a deterministic offline "demo mode", which we decided against. Known, deliberately-deferred items: generation variety is **tabled** (only matters for a real product, not the portfolio MVP — structured input parameterisation is the recorded future lever); no list/resume of past sessions. Completed sessions now **do** block further turns (ADR-033). The "generally healthy"-style answer-phrased labels are handled by the judge's `not_applicable`/topic interpretation rather than a generator field.
 
 Note (run before demoing): confirm the live judge with `scripts/smoke_evaluation.py` (one Groq call) and the full app with `uv run uvicorn src.api.main:app --port 8000` + `uv run streamlit run frontend/app.py`. Run servers via `uv run` (or activate `.venv`) — a bare `uvicorn`/`streamlit` resolves to the system install, which lacks our deps.
 

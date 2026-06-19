@@ -34,7 +34,9 @@ async def evaluate_session(db, judge, session_id: str) -> Evaluation:
 
     Returns:
         The persisted :class:`Evaluation`. If the session is already evaluated, that
-        existing evaluation is returned unchanged (idempotent, D5 — no re-judge).
+        existing evaluation is returned unchanged (idempotent, D5 — no re-judge). If
+        the interview is empty (no student turns), returns a 0% evaluation without
+        calling the judge (ADR-033).
 
     Raises:
         LookupError: if ``session_id`` does not exist.
@@ -51,14 +53,22 @@ async def evaluate_session(db, judge, session_id: str) -> Evaluation:
     scenario = Scenario.model_validate(session.patient_profile_json)
     rubric = build_rubric(scenario)
     turns = await crud.get_turns(db, session_id)
-    transcript = _render_transcript(turns)
 
-    # The risky LLM call — first, before any write; fails loud (no fallback).
-    verdict = await judge.judge(rubric, transcript)
+    if any(turn.speaker == "student" for turn in turns):
+        transcript = _render_transcript(turns)
+        # The risky LLM call — first, before any write; fails loud (no fallback).
+        verdict = await judge.judge(rubric, transcript)
+        notes = verdict.clinical_reasoning_notes
+        verdicts = {item.id: item.verdict for item in verdict.items}
+        scored = report.score(verdicts, rubric)
+    else:
+        # Empty interview: the student asked nothing, so don't spend a judge call to
+        # learn that. We don't enumerate per-topic here (the askable/not-applicable
+        # split is the judge's call, which we deliberately skipped) — just a clear 0%.
+        notes = "No questions were asked during this interview, so there is nothing to assess."
+        scored = report.ScoredResult(overall_score=0.0, covered=[], missed=[])
 
-    verdicts = {item.id: item.verdict for item in verdict.items}
-    scored = report.score(verdicts, rubric)
-    full_report = report.format_report(scored, verdict.clinical_reasoning_notes)
+    full_report = report.format_report(scored, notes)
 
     # Mark the session completed (no graph snapshot — redundant under ADR-030, D6).
     await crud.end_session(db, session_id)
@@ -69,6 +79,6 @@ async def evaluate_session(db, judge, session_id: str) -> Evaluation:
         covered_items=scored.covered,
         missed_items=scored.missed,
         overall_score=scored.overall_score,
-        clinical_reasoning_notes=verdict.clinical_reasoning_notes,
+        clinical_reasoning_notes=notes,
         full_report_text=full_report,
     )

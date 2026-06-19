@@ -8,7 +8,9 @@ must never be shown back to them.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, StringConstraints
 
 
 class CreateSessionRequest(BaseModel):
@@ -37,12 +39,16 @@ class SessionStateResponse(BaseModel):
 class TurnRequest(BaseModel):
     """Body of ``POST /sessions/{id}/turns`` — the student's message.
 
-    ``addressed_to`` is the explicit recipient chosen in the UI (patient | nurse |
-    family). Optional: if omitted, the router defaults to the patient.
+    ``content`` must carry an actual question — a blank or whitespace-only message
+    is rejected (422) before any agent/LLM work, never sent as an empty prompt.
+    ``addressed_to`` is the explicit recipient chosen in the UI; the contract is
+    strict (patient | nurse | family) since the UI is a fixed dropdown, so an
+    unknown value is a bug we surface (422) rather than silently coerce. Optional:
+    if omitted, the router defaults to the patient.
     """
 
-    content: str
-    addressed_to: str | None = None
+    content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    addressed_to: Literal["patient", "nurse", "family"] | None = None
 
 
 class TurnResponse(BaseModel):

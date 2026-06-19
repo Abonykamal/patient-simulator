@@ -8,8 +8,7 @@ Full spec: `docs/project_spec.md`. Architecture details: `docs/architecture.md`.
 ## Critical Commands
 
 ```bash
-# Setup
-docker-compose up -d
+# Setup (no services to stand up — SQLite is a file, ChromaDB persists locally)
 uv sync
 
 # Run

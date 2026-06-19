@@ -735,5 +735,31 @@ New `src/evaluation/{rubric,judge,report,evaluator}.py`, `api/routes/evaluation.
 
 ---
 
+## ADR-033: Phase 8 Edge-Case Hardening — Lifecycle Guard, Strict Turn Contract, Empty-Interview Short-Circuit
+**Date:** June 2026
+**Status:** Accepted
+
+**Context:**
+The API was a happy-path contract. Driving it raised four out-of-order / malformed cases the routes did not handle: a turn submitted *after* the session was graded; a blank or whitespace-only message; an `addressed_to` outside the three real recipients; and clicking "End interview" with no questions asked. Each either silently did the wrong thing or spent an LLM call on nothing.
+
+**Options considered:**
+- *Completed-session turn:* let it through (status quo) vs reject with `409 Conflict` vs `404` vs `400`.
+- *Where the lifecycle guard lives:* the route vs the orchestrator.
+- *Blank / bad-recipient input:* coerce leniently (e.g. empty→pass, unknown recipient→patient) vs reject at the schema with `422`.
+- *Empty interview:* always call the judge (status quo) vs short-circuit to 0% without a judge call.
+
+**Decision:**
+1. **A graded (completed) session refuses further turns.** `run_turn` raises a new domain error `SessionClosedError`; the route maps it to **`409 Conflict`**. The rule lives in the **orchestrator** (it's domain logic, not HTTP shaping); the route only maps it, mirroring the existing `LookupError → 404`. The Streamlit UI hides the input once a report exists, so the student never types into a 409.
+2. **The turn contract is strict.** `TurnRequest.content` is `min_length=1` after whitespace strip, and `addressed_to` is a `Literal["patient","nurse","family"] | None`. FastAPI returns **`422`** before any orchestrator/LLM work.
+3. **An empty interview short-circuits.** If a session has no student turns, `evaluate_session` returns a 0% evaluation with a plain "no questions were asked" note and **does not call the judge**.
+
+**Reasoning:**
+`409` is the precise status — the request is well-formed and the session exists, but it conflicts with the session's lifecycle state; `404` (exists) and `400` (malformed) both misdescribe it. Keeping the guard in the orchestrator honours CLAUDE.md's "business logic out of routes" and makes it retry-safe by construction (it raises before any write, like the D5 failure path). Strict input is right because the UI is a fixed dropdown and the message box is the whole point of a turn: a blank message or an unknown recipient is a bug to surface, not silently coerce — and a schema-level `422` costs zero custom code and spends no quota. The empty-interview short-circuit avoids paying for a judge call to conclude "you asked nothing"; it does **not** enumerate per-topic coverage because the askable/`not_applicable` split is exactly the judge's call (ADR-032), which it deliberately skipped — so it reports a clear 0% rather than fabricate that split.
+
+**Consequences:**
+New `SessionClosedError` in `conversation/orchestrator.py` + the `session.status == "completed"` guard; `409` branch in `routes/conversation.py`; tightened `TurnRequest` in `api/schemas.py`; the empty-interview branch in `evaluation/evaluator.py`; the input-hiding guard in `frontend/app.py`. +5 unit tests (166 total): a completed-session rejection (orchestrator), `409`/`422`×2 route shapes, and a judge-not-called empty-interview evaluation. Deliberately *not* addressed (still open, as recorded in `project_status.md`): no list/resume of past sessions. Pairs with ADR-029/ADR-032.
+
+---
+
 *New decisions will be added here as the project is built.*
 *Each entry should take ~5 minutes to write. Date it, describe the context, log the options you considered, and record why you chose what you chose.*

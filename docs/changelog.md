@@ -7,6 +7,16 @@ Format: Date → What was built → Decisions made
 
 ## [Unreleased]
 
+### 2026-06-19 — Phase 8: edge-case hardening + README (166 unit tests total, +5)
+- `README.md` — portfolio-facing setup/architecture/usage doc (no Docker — there's no compose file and nothing needs a service; SQLite is a file, ChromaDB is local)
+- Edge cases handled (ADR-033): four out-of-order / malformed paths the happy-path API missed —
+  - *Turn after the interview is graded* → `run_turn` raises `SessionClosedError` (`session.status == "completed"`), route maps to **409 Conflict**; the Streamlit input is hidden once a report exists, so the student never types into a 409
+  - *Blank / whitespace-only message* → `TurnRequest.content` is `min_length=1` after strip → **422** before any LLM work
+  - *Unknown recipient* → `TurnRequest.addressed_to` is a strict `Literal["patient","nurse","family"] | None` → **422** (the UI is a fixed dropdown; a bad value is a bug to surface, not coerce)
+  - *Empty interview* (no student turns) → `evaluate_session` returns a plain 0% report **without calling the judge** (no quota spent to learn "you asked nothing")
+- `docs/decisions.md` ADR-033, `docs/architecture.md` (API error-mapping + test count), `CLAUDE.md` (dropped the stale `docker-compose up -d` — no compose file, no service needed)
+- Still deliberately open (see `project_status.md`): no list/resume of past sessions
+
 ### 2026-06-18 — Phase 8: evaluation quality fixes from live runs (161 unit tests total, +2)
 - Driving the app surfaced rubric-quality issues the fake-injected tests couldn't (see ADR-032 Refinements):
 - `src/evaluation/rubric.py` — grade only `critical`/`relevant` nodes; `minor` incidental colour ("hairdresser", "lives alone") stays in the graph but is no longer graded (category filtering rejected — `social` holds both "smoker" and "hairdresser")

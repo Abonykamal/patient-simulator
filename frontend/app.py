@@ -159,8 +159,12 @@ for turn in st.session_state.transcript:
             st.caption(label)
             st.write(turn["content"])
 
-# "Talking to" renders just above the bottom-pinned input, matching a bedside turn.
-recipient = st.selectbox("Talking to", list(RECIPIENTS))
-
-if prompt := st.chat_input("Ask a question…"):
-    _send_turn(prompt, RECIPIENTS[recipient])
+# Once graded, the interview is closed — the backend rejects further turns (409),
+# so hide the input rather than let the student type into an error.
+if st.session_state.report:
+    st.success("This interview has ended. Start a new encounter from the sidebar.")
+else:
+    # "Talking to" renders just above the bottom-pinned input, matching a bedside turn.
+    recipient = st.selectbox("Talking to", list(RECIPIENTS))
+    if prompt := st.chat_input("Ask a question…"):
+        _send_turn(prompt, RECIPIENTS[recipient])

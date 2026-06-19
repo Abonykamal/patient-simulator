@@ -9,7 +9,7 @@ import pytest
 
 from scenarios.schema import Scenario
 from src.agents.base import AgentResponse, AgentResponseError
-from src.conversation.orchestrator import run_turn, start_session
+from src.conversation.orchestrator import SessionClosedError, run_turn, start_session
 from src.db import crud
 from src.rag.generator import ScenarioRequest
 
@@ -243,3 +243,19 @@ async def test_run_turn_unknown_session_raises_lookuperror(db_session):
         await run_turn(
             db_session, FakeRouterFactory(FakeRouter(agent)), "no-such-session", "hello", "patient"
         )
+
+
+async def test_run_turn_completed_session_rejects(db_session):
+    """A graded (completed) session must not accept further turns (ADR-033)."""
+    scenario = _scenario()
+    sim = await _make_session(db_session, scenario)
+    await crud.end_session(db_session, sim.id)  # session is now completed
+    agent = FakeAgent("patient", AgentResponse(response_text="hi", emotional_state="calm"))
+
+    with pytest.raises(SessionClosedError):
+        await run_turn(
+            db_session, FakeRouterFactory(FakeRouter(agent)), sim.id, "One more question?", "patient"
+        )
+
+    # The guard runs before any write, so nothing is persisted (consistent with D5).
+    assert await crud.get_turns(db_session, sim.id) == []

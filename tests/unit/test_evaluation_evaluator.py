@@ -100,3 +100,22 @@ async def test_evaluate_session_unknown_raises_lookuperror(db_session):
     judge = FakeJudge(JudgeVerdict(items=[], clinical_reasoning_notes=""))
     with pytest.raises(LookupError):
         await evaluate_session(db_session, judge, "no-such-session")
+
+
+async def test_evaluate_empty_interview_skips_judge(db_session):
+    """No student turns → a 0% report with no judge call spent (ADR-033)."""
+    sc = _scenario()
+    sim = await crud.create_session(
+        db_session, sc.scenario_id, sc.scenario_name, patient_profile=sc.model_dump()
+    )
+    # Student clicked "end" immediately — the session has no turns at all.
+    judge = FakeJudge(JudgeVerdict(items=[], clinical_reasoning_notes="should not run"))
+
+    ev = await evaluate_session(db_session, judge, sim.id)
+
+    assert judge.calls == 0  # the judge is never invoked on an empty interview
+    assert ev.overall_score == 0.0
+    assert ev.covered_items_json == []
+    assert ev.missed_items_json == []
+    assert "No questions were asked" in ev.clinical_reasoning_notes
+    assert (await crud.get_session(db_session, sim.id)).status == "completed"

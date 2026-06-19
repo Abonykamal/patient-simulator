@@ -1,8 +1,10 @@
 """Conversation route — submit a student message, get the agent's reply. Thin.
 
-Maps the orchestrator's outcomes to HTTP: an unknown session is a 404; any
-LLM/agent failure becomes a friendly 503 with nothing persisted (D5), so the
-student can simply resend. The happy path returns who answered and what they said.
+Maps the orchestrator's outcomes to HTTP: an unknown session is a 404; a graded
+(completed) session is a 409 (the request conflicts with the session's lifecycle
+state); any LLM/agent failure becomes a friendly 503 with nothing persisted (D5),
+so the student can simply resend. The happy path returns who answered and what
+they said.
 """
 
 from __future__ import annotations
@@ -32,6 +34,10 @@ async def post_turn(
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Session not found.") from exc
+    except orchestrator.SessionClosedError as exc:
+        raise HTTPException(
+            status_code=409, detail="This interview has ended and cannot take more questions."
+        ) from exc
     except Exception as exc:  # provider down or agent could not produce valid output
         log.warning("turn_failed", session_id=session_id, error=str(exc))
         raise HTTPException(
